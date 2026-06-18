@@ -83,6 +83,6 @@ class CheckoutController extends Controller
                 ->delete();
         });
 
-        return to_route('cart.index');
+        return to_route('cart.index')->with('success', 'Pesanan berhasil dibuat.');
     }
 }

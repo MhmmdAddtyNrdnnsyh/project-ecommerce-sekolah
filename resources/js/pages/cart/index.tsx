@@ -29,6 +29,7 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
+import { checkout } from '@/routes';
 import { index as cartIndex } from '@/routes/cart';
 import {
     destroy as destroyCartItem,
@@ -377,13 +378,24 @@ export default function CartIndex({ items, summary }: CartIndexProps) {
                                         {formatRupiah(summary.total_price)}
                                     </span>
                                 </div>
-                                <Button
-                                    type="button"
-                                    disabled={items.length === 0}
-                                    className="h-10 w-full rounded-[8px] bg-[#0080FF] hover:bg-[#006FE0]"
+                                <Form
+                                    {...checkout.form()}
+                                    disableWhileProcessing
                                 >
-                                    Checkout
-                                </Button>
+                                    {({ processing }) => (
+                                        <Button
+                                            type="submit"
+                                            disabled={
+                                                processing ||
+                                                items.length === 0
+                                            }
+                                            className="h-10 w-full rounded-[8px] bg-[#0080FF] hover:bg-[#006FE0]"
+                                        >
+                                            {processing && <Spinner />}
+                                            Checkout
+                                        </Button>
+                                    )}
+                                </Form>
                             </CardContent>
                         </Card>
                     </section>

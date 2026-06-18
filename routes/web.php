@@ -5,6 +5,7 @@ use App\Http\Controllers\AdminProductModerationController;
 use App\Http\Controllers\BuyerCatalogController;
 use App\Http\Controllers\BuyerProductDetailController;
 use App\Http\Controllers\CartController;
+use App\Http\Controllers\CheckoutController;
 use App\Http\Controllers\SellerDashboardController;
 use App\Http\Controllers\SellerProductController;
 use App\Http\Middleware\EnsureUserIsAdmin;
@@ -21,6 +22,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('cart/items/{product:slug}', [CartController::class, 'store'])->name('cart.items.store');
     Route::put('cart/items/{cartItem}', [CartController::class, 'update'])->name('cart.items.update');
     Route::delete('cart/items/{cartItem}', [CartController::class, 'destroy'])->name('cart.items.destroy');
+
+    Route::post('checkout', CheckoutController::class)->name('checkout');
 });
 
 Route::middleware(['auth', 'verified', EnsureUserIsAdmin::class])->group(function () {
