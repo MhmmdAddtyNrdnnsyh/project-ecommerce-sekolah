@@ -11,7 +11,6 @@ use App\Http\Responses\Auth\PasswordResetResponse;
 use App\Http\Responses\Auth\RedirectAsIntended;
 use App\Http\Responses\Auth\RegisterResponse;
 use App\Http\Responses\Auth\TwoFactorLoginResponse;
-use App\Http\Responses\Auth\VerifyEmailResponse;
 use App\Models\Position;
 use App\Models\SchoolClass;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -26,7 +25,6 @@ use Laravel\Fortify\Contracts\PasswordConfirmedResponse as PasswordConfirmedResp
 use Laravel\Fortify\Contracts\PasswordResetResponse as PasswordResetResponseContract;
 use Laravel\Fortify\Contracts\RegisterResponse as RegisterResponseContract;
 use Laravel\Fortify\Contracts\TwoFactorLoginResponse as TwoFactorLoginResponseContract;
-use Laravel\Fortify\Contracts\VerifyEmailResponse as VerifyEmailResponseContract;
 use Laravel\Fortify\Features;
 use Laravel\Fortify\Fortify;
 use Laravel\Fortify\Http\Responses\RedirectAsIntended as FortifyRedirectAsIntended;
@@ -43,7 +41,6 @@ class FortifyServiceProvider extends ServiceProvider
         $this->app->singleton(TwoFactorLoginResponseContract::class, TwoFactorLoginResponse::class);
         $this->app->singleton(RegisterResponseContract::class, RegisterResponse::class);
         $this->app->singleton(PasskeyLoginResponseContract::class, PasskeyLoginResponse::class);
-        $this->app->singleton(VerifyEmailResponseContract::class, VerifyEmailResponse::class);
         $this->app->singleton(PasswordConfirmedResponseContract::class, PasswordConfirmedResponse::class);
         $this->app->bind(PasswordResetResponseContract::class, PasswordResetResponse::class);
         $this->app->bind(FortifyRedirectAsIntended::class, RedirectAsIntended::class);
@@ -85,10 +82,6 @@ class FortifyServiceProvider extends ServiceProvider
         ]));
 
         Fortify::requestPasswordResetLinkView(fn (Request $request) => Inertia::render('auth/forgot-password', [
-            'status' => $request->session()->get('status'),
-        ]));
-
-        Fortify::verifyEmailView(fn (Request $request) => Inertia::render('auth/verify-email', [
             'status' => $request->session()->get('status'),
         ]));
 

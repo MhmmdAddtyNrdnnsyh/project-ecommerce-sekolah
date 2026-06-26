@@ -1,4 +1,4 @@
-import { Head } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
 import type { LucideIcon } from 'lucide-react';
 import {
     AlertTriangle,
@@ -6,7 +6,6 @@ import {
     BadgeDollarSign,
     Boxes,
     Clock3,
-    Download,
     Laptop,
     Megaphone,
     Minus,
@@ -45,13 +44,6 @@ import {
 } from '@/components/ui/chart';
 import type { ChartConfig } from '@/components/ui/chart';
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
-import {
     Table,
     TableBody,
     TableCell,
@@ -60,10 +52,17 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
+import { edit as editProfile } from '@/routes/profile';
 import { dashboard as sellerDashboard } from '@/routes/seller';
+import { index as sellerInventoryIndex } from '@/routes/seller/inventory';
+import { index as sellerOrdersIndex } from '@/routes/seller/orders';
+import {
+    create as sellerProductsCreate,
+    index as sellerProductsIndex,
+} from '@/routes/seller/products';
 
 type StatTone = 'blue' | 'emerald' | 'amber' | 'rose';
-type OrderStatus = 'Paid' | 'Packed' | 'Sent' | 'Issue';
+type OrderStatus = 'pending' | 'packed' | 'sent';
 
 type SellerIconKey =
     | 'alertTriangle'
@@ -95,14 +94,15 @@ type SalesPoint = {
 };
 
 type OrderMixItem = {
-    status: string;
+    status: OrderStatus;
     label: string;
     value: number;
     fill: string;
 };
 
 type OrderItem = {
-    id: string;
+    id: number;
+    order_id: number;
     buyer: string;
     product: string;
     amount: string;
@@ -176,8 +176,8 @@ const orderMixConfig = {
     value: {
         label: 'Pesanan',
     },
-    paid: {
-        label: 'Dibayar',
+    pending: {
+        label: 'Menunggu',
         color: '#2563eb',
     },
     packed: {
@@ -187,10 +187,6 @@ const orderMixConfig = {
     sent: {
         label: 'Dikirim',
         color: '#10b981',
-    },
-    issue: {
-        label: 'Kendala',
-        color: '#e11d48',
     },
 } satisfies ChartConfig;
 
@@ -225,17 +221,15 @@ const toneStyles: Record<
 };
 
 const statusStyles: Record<OrderStatus, string> = {
-    Paid: 'bg-blue-50 text-blue-700',
-    Packed: 'bg-amber-50 text-amber-700',
-    Sent: 'bg-emerald-50 text-emerald-700',
-    Issue: 'bg-rose-50 text-rose-700',
+    pending: 'bg-blue-50 text-blue-700',
+    packed: 'bg-amber-50 text-amber-700',
+    sent: 'bg-emerald-50 text-emerald-700',
 };
 
 const statusLabels: Record<OrderStatus, string> = {
-    Paid: 'Dibayar',
-    Packed: 'Dikemas',
-    Sent: 'Dikirim',
-    Issue: 'Kendala',
+    pending: 'Menunggu',
+    packed: 'Dikemas',
+    sent: 'Dikirim',
 };
 
 function StatCard({ stat }: { stat: StatCardData }) {
@@ -286,6 +280,20 @@ export default function SellerDashboard({
         (total, status) => total + status.value,
         0,
     );
+    const taskHref = (action: string) => {
+        switch (action) {
+            case 'Tambah produk':
+                return sellerProductsCreate();
+            case 'Lihat produk':
+                return sellerProductsIndex();
+            case 'Proses pesanan':
+                return sellerOrdersIndex();
+            case 'Lihat profil':
+                return editProfile();
+            default:
+                return sellerDashboard();
+        }
+    };
 
     return (
         <>
@@ -299,43 +307,14 @@ export default function SellerDashboard({
                                     <Store className="size-3.5" />
                                     Seller Center
                                 </Badge>
-                                <Badge className="rounded-[6px] bg-blue-50 text-blue-700">
-                                    Toko aktif
-                                </Badge>
                             </div>
                             <h1 className="text-2xl font-semibold text-slate-950">
                                 Dashboard Seller
                             </h1>
                             <p className="mt-1 max-w-2xl text-sm text-slate-500">
-                                Pantau performa toko, pesanan, produk, stok, dan
-                                saldo pencairan dalam satu tempat.
+                                Pantau performa toko, pesanan, produk, dan stok
+                                dalam satu tempat.
                             </p>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2">
-                            <Select defaultValue="week">
-                                <SelectTrigger className="h-9 w-36 rounded-[8px] border border-slate-200 bg-white">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent className="rounded-[8px] bg-white text-slate-900 ring-slate-200">
-                                    <SelectItem value="today">
-                                        Hari ini
-                                    </SelectItem>
-                                    <SelectItem value="week">
-                                        Minggu ini
-                                    </SelectItem>
-                                    <SelectItem value="month">
-                                        Bulan ini
-                                    </SelectItem>
-                                </SelectContent>
-                            </Select>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                className="h-9 rounded-[8px] border-slate-200 bg-white"
-                            >
-                                <Download className="size-4" />
-                                Ekspor
-                            </Button>
                         </div>
                     </section>
 
@@ -462,7 +441,7 @@ export default function SellerDashboard({
                                     </ChartContainer>
                                     <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
                                         <span className="text-2xl font-semibold text-slate-800">
-                                            {orderMixTotal}%
+                                            {orderMixTotal}
                                         </span>
                                     </div>
                                 </div>
@@ -480,7 +459,7 @@ export default function SellerDashboard({
                                                 }}
                                             />
                                             <span className="truncate text-xs font-medium text-slate-600">
-                                                {status.label} ({status.value}%)
+                                                {status.label} ({status.value})
                                             </span>
                                         </div>
                                     ))}
@@ -502,16 +481,18 @@ export default function SellerDashboard({
                                 </div>
                                 <CardAction>
                                     <Button
-                                        type="button"
+                                        asChild
                                         variant="ghost"
                                         className="h-8 rounded-[8px] px-2 text-blue-600 hover:bg-blue-50 hover:text-blue-800"
                                     >
-                                        Semua pesanan
-                                        <ArrowUpRight className="size-4" />
+                                        <Link href={sellerOrdersIndex()}>
+                                            Semua pesanan
+                                            <ArrowUpRight className="size-4" />
+                                        </Link>
                                     </Button>
                                 </CardAction>
                             </CardHeader>
-                            <CardContent className="p-0">
+                            <CardContent className="overflow-x-auto p-0">
                                 <Table>
                                     <TableHeader>
                                         <TableRow className="border-slate-100 bg-slate-50 hover:bg-slate-50">
@@ -549,7 +530,7 @@ export default function SellerDashboard({
                                                 className="border-slate-100 hover:bg-slate-50/70"
                                             >
                                                 <TableCell className="px-6 py-4 font-semibold text-slate-950">
-                                                    {order.id}
+                                                    #{order.order_id}
                                                 </TableCell>
                                                 <TableCell className="px-6 py-4 text-slate-600">
                                                     {order.buyer}
@@ -626,11 +607,15 @@ export default function SellerDashboard({
                                                 </div>
                                             </div>
                                             <Button
-                                                type="button"
+                                                asChild
                                                 variant="outline"
                                                 className="mt-4 h-8 rounded-[8px] border-slate-200 bg-white px-2 text-xs"
                                             >
-                                                {task.action}
+                                                <Link
+                                                    href={taskHref(task.action)}
+                                                >
+                                                    {task.action}
+                                                </Link>
                                             </Button>
                                         </div>
                                     );
@@ -779,11 +764,15 @@ export default function SellerDashboard({
                                                             {item.stock}
                                                         </p>
                                                         <Button
-                                                            type="button"
+                                                            asChild
                                                             variant="link"
                                                             className="h-auto rounded-[8px] p-0 text-xs text-blue-600"
                                                         >
-                                                            Restock
+                                                            <Link
+                                                                href={sellerInventoryIndex()}
+                                                            >
+                                                                Restock
+                                                            </Link>
                                                         </Button>
                                                     </div>
                                                 </li>

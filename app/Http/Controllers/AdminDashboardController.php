@@ -2,7 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\ProductStatus;
 use App\Enums\UserRole;
+use App\Models\Order;
+use App\Models\Product;
 use App\Models\User;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -33,10 +36,12 @@ class AdminDashboardController extends Controller
             ->where('created_at', '>=', now()->startOfMonth())
             ->count();
         $sellerCount = $this->roleCount(UserRole::Seller);
-        $pendingSellerVerification = User::query()
-            ->where('role', UserRole::Seller->value)
-            ->whereNull('email_verified_at')
+        $totalProducts = Product::query()->count();
+        $approvedProducts = Product::query()
+            ->where('status', ProductStatus::Approved)
             ->count();
+        $totalOrders = Order::query()->count();
+        $totalRevenue = (int) Order::query()->sum('total_price');
 
         return [
             [
@@ -49,23 +54,23 @@ class AdminDashboardController extends Controller
             [
                 'label' => 'Seller Aktif',
                 'value' => $this->number($sellerCount),
-                'context' => $this->number($pendingSellerVerification).' seller belum verifikasi email',
+                'context' => $this->number($sellerCount).' seller terdaftar',
                 'tone' => 'emerald',
                 'icon' => 'store',
             ],
             [
                 'label' => 'Produk Live',
-                'value' => '0',
-                'context' => 'Modul produk belum tersedia',
+                'value' => $this->number($approvedProducts),
+                'context' => $this->number($totalProducts).' total produk',
                 'tone' => 'amber',
                 'icon' => 'packageCheck',
             ],
             [
-                'label' => 'Kasus Prioritas',
-                'value' => $this->number($pendingSellerVerification),
-                'context' => 'Akun seller perlu ditinjau',
+                'label' => 'Transaksi',
+                'value' => $this->number($totalOrders),
+                'context' => 'Rp '.$this->number($totalRevenue).' omzet tercatat',
                 'tone' => 'rose',
-                'icon' => 'alertTriangle',
+                'icon' => 'walletCards',
             ],
         ];
     }
@@ -123,23 +128,24 @@ class AdminDashboardController extends Controller
      */
     private function adminQueue(): array
     {
-        return User::query()
-            ->where('role', UserRole::Seller->value)
-            ->whereNull('email_verified_at')
-            ->latest()
+        $pendingProducts = Product::query()
+            ->with('seller:id,name')
+            ->where('status', ProductStatus::Pending)
+            ->whereNotNull('seller_id')
+            ->oldest()
             ->limit(4)
-            ->get(['id', 'name', 'created_at'])
-            ->map(fn (User $seller) => [
-                'ticket' => 'USR-'.$seller->id,
-                'area' => 'Verifikasi email seller',
-                'owner' => $seller->name,
+            ->get(['id', 'seller_id', 'name', 'created_at'])
+            ->map(fn (Product $product) => [
+                'ticket' => 'PRD-'.$product->id,
+                'area' => 'Moderasi produk',
+                'owner' => $product->seller->name,
                 'priority' => 'High',
                 'status' => 'Open',
-                'sla' => $seller->created_at?->diffForHumans() ?? '-',
-                'icon' => 'userRoundCheck',
-            ])
-            ->values()
-            ->all();
+                'sla' => $product->created_at?->diffForHumans() ?? '-',
+                'icon' => 'packageCheck',
+            ]);
+
+        return $pendingProducts->values()->all();
     }
 
     /**
@@ -148,28 +154,17 @@ class AdminDashboardController extends Controller
     private function platformHealth(): array
     {
         $totalUsers = User::query()->count();
-        $verifiedUsers = User::query()->whereNotNull('email_verified_at')->count();
-        $sellerCount = $this->roleCount(UserRole::Seller);
-        $verifiedSellers = User::query()
-            ->where('role', UserRole::Seller->value)
-            ->whereNotNull('email_verified_at')
-            ->count();
         $usersWithPosition = User::query()->whereNotNull('position_id')->count();
-        $pendingVerification = User::query()->whereNull('email_verified_at')->count();
+        $totalProducts = Product::query()->count();
+        $approvedProducts = Product::query()
+            ->where('status', ProductStatus::Approved)
+            ->count();
+        $pendingProducts = Product::query()
+            ->where('status', ProductStatus::Pending)
+            ->count();
+        $totalOrders = Order::query()->count();
 
         return [
-            [
-                'label' => 'Email user terverifikasi',
-                'value' => $this->percentLabel($verifiedUsers, $totalUsers),
-                'progress' => $this->percent($verifiedUsers, $totalUsers),
-                'tone' => 'emerald',
-            ],
-            [
-                'label' => 'Seller terverifikasi',
-                'value' => $this->percentLabel($verifiedSellers, $sellerCount),
-                'progress' => $this->percent($verifiedSellers, $sellerCount),
-                'tone' => 'blue',
-            ],
             [
                 'label' => 'Profil posisi lengkap',
                 'value' => $this->percentLabel($usersWithPosition, $totalUsers),
@@ -177,10 +172,22 @@ class AdminDashboardController extends Controller
                 'tone' => 'emerald',
             ],
             [
-                'label' => 'Akun belum verifikasi email',
-                'value' => $this->number($pendingVerification).' akun',
-                'progress' => $this->percent($pendingVerification, max($totalUsers, 1)),
-                'tone' => $pendingVerification > 0 ? 'rose' : 'emerald',
+                'label' => 'Produk approved',
+                'value' => $this->percentLabel($approvedProducts, $totalProducts),
+                'progress' => $this->percent($approvedProducts, $totalProducts),
+                'tone' => 'amber',
+            ],
+            [
+                'label' => 'Produk menunggu moderasi',
+                'value' => $this->number($pendingProducts),
+                'progress' => $this->percent($pendingProducts, max($totalProducts, 1)),
+                'tone' => 'blue',
+            ],
+            [
+                'label' => 'Order tercatat',
+                'value' => $this->number($totalOrders),
+                'progress' => $totalOrders > 0 ? 100 : 0,
+                'tone' => 'emerald',
             ],
         ];
     }
@@ -233,6 +240,7 @@ class AdminDashboardController extends Controller
     {
         return match ($role) {
             UserRole::Admin => 'shieldCheck',
+            UserRole::AdminJurusan => 'clipboardCheck',
             UserRole::Seller => 'store',
             UserRole::PicketOfficer => 'clipboardCheck',
             UserRole::Buyer => 'badgeCheck',
@@ -243,6 +251,7 @@ class AdminDashboardController extends Controller
     {
         return match ($role) {
             UserRole::Admin => 'blue',
+            UserRole::AdminJurusan => 'amber',
             UserRole::Seller => 'emerald',
             UserRole::PicketOfficer => 'amber',
             UserRole::Buyer => 'blue',

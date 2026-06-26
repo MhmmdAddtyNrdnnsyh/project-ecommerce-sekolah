@@ -7,6 +7,16 @@ import {
     XCircle,
 } from 'lucide-react';
 import InputError from '@/components/input-error';
+import {
+    AlertDialog,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -165,45 +175,93 @@ export default function AdminProductModeration({
                                             )}
                                         </Form>
 
-                                        <Form
-                                            {...rejectProduct.form(product.id)}
-                                            disableWhileProcessing
-                                            className="grid gap-2 md:grid-cols-[1fr_auto]"
-                                        >
-                                            {({ processing, errors }) => (
-                                                <>
-                                                    <div>
-                                                        <Textarea
-                                                            name="reason"
-                                                            rows={2}
-                                                            placeholder="Alasan penolakan opsional"
-                                                            aria-invalid={Boolean(
-                                                                errors.reason,
-                                                            )}
-                                                            className="min-h-10"
-                                                        />
-                                                        <InputError
-                                                            message={
-                                                                errors.reason
-                                                            }
-                                                        />
-                                                    </div>
-                                                    <Button
-                                                        type="submit"
-                                                        variant="outline"
-                                                        className="h-10 rounded-[8px] border-rose-200 bg-white text-rose-700 hover:bg-rose-50 hover:text-rose-800"
-                                                        disabled={processing}
-                                                    >
-                                                        {processing ? (
-                                                            <Spinner />
-                                                        ) : (
-                                                            <XCircle className="size-4" />
-                                                        )}
-                                                        Reject
-                                                    </Button>
-                                                </>
-                                            )}
-                                        </Form>
+                                        <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    className="h-10 w-fit rounded-[8px] border-rose-200 bg-white text-rose-700 hover:bg-rose-50 hover:text-rose-800"
+                                                >
+                                                    <XCircle className="size-4" />
+                                                    Reject
+                                                </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                                <Form
+                                                    {...rejectProduct.form(
+                                                        product.id,
+                                                    )}
+                                                    disableWhileProcessing
+                                                >
+                                                    {({
+                                                        processing,
+                                                        errors,
+                                                    }) => (
+                                                        <div className="grid gap-5">
+                                                            <AlertDialogHeader>
+                                                                <AlertDialogTitle>
+                                                                    Tolak
+                                                                    produk?
+                                                                </AlertDialogTitle>
+                                                                <AlertDialogDescription>
+                                                                    Produk akan
+                                                                    dikembalikan
+                                                                    ke seller
+                                                                    dan tidak
+                                                                    tampil di
+                                                                    katalog.
+                                                                </AlertDialogDescription>
+                                                            </AlertDialogHeader>
+
+                                                            <div>
+                                                                <Textarea
+                                                                    name="reason"
+                                                                    rows={4}
+                                                                    placeholder="Alasan penolakan opsional"
+                                                                    aria-invalid={Boolean(
+                                                                        errors.reason,
+                                                                    )}
+                                                                    className="min-h-28"
+                                                                />
+                                                                <InputError
+                                                                    message={
+                                                                        errors.reason
+                                                                    }
+                                                                />
+                                                            </div>
+
+                                                            <AlertDialogFooter>
+                                                                <AlertDialogCancel
+                                                                    asChild
+                                                                >
+                                                                    <Button
+                                                                        type="button"
+                                                                        variant="outline"
+                                                                        className="rounded-[8px]"
+                                                                    >
+                                                                        Batal
+                                                                    </Button>
+                                                                </AlertDialogCancel>
+                                                                <Button
+                                                                    type="submit"
+                                                                    className="rounded-[8px] bg-rose-600 text-white hover:bg-rose-700"
+                                                                    disabled={
+                                                                        processing
+                                                                    }
+                                                                >
+                                                                    {processing ? (
+                                                                        <Spinner />
+                                                                    ) : (
+                                                                        <XCircle className="size-4" />
+                                                                    )}
+                                                                    Reject
+                                                                </Button>
+                                                            </AlertDialogFooter>
+                                                        </div>
+                                                    )}
+                                                </Form>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
                                     </div>
                                 </CardContent>
                             </Card>

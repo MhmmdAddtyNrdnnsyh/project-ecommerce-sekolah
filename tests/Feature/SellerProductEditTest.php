@@ -73,7 +73,6 @@ test('seller product update validation is explicit', function () {
             'category_id' => 999,
             'description' => 'Pendek',
             'price' => 0,
-            'stock' => -1,
         ]);
 
     $response
@@ -83,7 +82,6 @@ test('seller product update validation is explicit', function () {
             'category_id',
             'description',
             'price',
-            'stock',
         ]);
 });
 
@@ -125,7 +123,32 @@ test('approved product returns to pending when seller edits it', function () {
         'slug' => 'pulpen-gel-biru',
         'description' => 'Pulpen gel biru untuk catatan harian siswa.',
         'price' => 6000,
-        'stock' => 8,
+        'stock' => 10,
         'status' => ProductStatus::Pending->value,
+    ]);
+});
+
+test('seller product update does not require stock because inventory owns stock changes', function () {
+    $seller = User::factory()->create(['role' => UserRole::Seller]);
+    $category = Category::factory()->create();
+    $product = Product::factory()
+        ->for($seller, 'seller')
+        ->for($category)
+        ->create(['stock' => 12]);
+
+    $this->actingAs($seller)
+        ->from(route('seller.products.edit', $product))
+        ->put(route('seller.products.update', $product), [
+            'name' => 'Pulpen Gel Merah',
+            'category_id' => $category->id,
+            'description' => 'Pulpen gel merah untuk catatan harian siswa.',
+            'price' => 7000,
+        ])
+        ->assertRedirect(route('seller.products.index'));
+
+    $this->assertDatabaseHas('products', [
+        'id' => $product->id,
+        'name' => 'Pulpen Gel Merah',
+        'stock' => 12,
     ]);
 });

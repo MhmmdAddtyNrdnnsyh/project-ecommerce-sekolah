@@ -45,6 +45,7 @@ type CategoryOption = {
 
 type SellerProductCreateProps = {
     categories: CategoryOption[];
+    upJurusans: { id: number; name: string }[];
 };
 
 type SelectTheme = CSSProperties & Record<`--${string}`, string>;
@@ -68,8 +69,12 @@ const selectTriggerClassName =
 
 export default function SellerProductCreate({
     categories,
+    upJurusans,
 }: SellerProductCreateProps) {
     const [categoryId, setCategoryId] = useState('');
+    const [salesMethod, setSalesMethod] = useState('self_managed');
+    const [status, setStatus] = useState('pending');
+    const [upJurusanId, setUpJurusanId] = useState('');
 
     return (
         <>
@@ -234,6 +239,96 @@ export default function SellerProductCreate({
                                             />
                                         </div>
 
+                                        <div className={fieldClassName}>
+                                            <Label
+                                                htmlFor="sales_method"
+                                                className={labelClassName}
+                                            >
+                                                Metode Penjualan
+                                            </Label>
+                                            <Select
+                                                name="sales_method"
+                                                value={salesMethod}
+                                                onValueChange={setSalesMethod}
+                                                required
+                                            >
+                                                <SelectTrigger
+                                                    id="sales_method"
+                                                    className={
+                                                        selectTriggerClassName
+                                                    }
+                                                    aria-invalid={Boolean(
+                                                        errors.sales_method,
+                                                    )}
+                                                >
+                                                    <SelectValue placeholder="Pilih metode penjualan" />
+                                                </SelectTrigger>
+                                                <SelectContent
+                                                    style={selectPortalTheme}
+                                                >
+                                                    <SelectGroup>
+                                                        <SelectLabel>
+                                                            Metode Penjualan
+                                                        </SelectLabel>
+                                                        <SelectItem value="self_managed">
+                                                            Jual Mandiri
+                                                        </SelectItem>
+                                                        <SelectItem value="up_jurusan">
+                                                            Titip ke UP Jurusan
+                                                        </SelectItem>
+                                                    </SelectGroup>
+                                                </SelectContent>
+                                            </Select>
+                                            <InputError
+                                                message={errors.sales_method}
+                                            />
+                                        </div>
+
+                                        <div className={fieldClassName}>
+                                            <Label
+                                                htmlFor="status"
+                                                className={labelClassName}
+                                            >
+                                                Status Produk
+                                            </Label>
+                                            <Select
+                                                name="status"
+                                                value={status}
+                                                onValueChange={setStatus}
+                                                required
+                                            >
+                                                <SelectTrigger
+                                                    id="status"
+                                                    className={
+                                                        selectTriggerClassName
+                                                    }
+                                                    aria-invalid={Boolean(
+                                                        errors.status,
+                                                    )}
+                                                >
+                                                    <SelectValue placeholder="Pilih status produk" />
+                                                </SelectTrigger>
+                                                <SelectContent
+                                                    style={selectPortalTheme}
+                                                >
+                                                    <SelectGroup>
+                                                        <SelectLabel>
+                                                            Status Produk
+                                                        </SelectLabel>
+                                                        <SelectItem value="pending">
+                                                            Ajukan Review
+                                                        </SelectItem>
+                                                        <SelectItem value="draft">
+                                                            Simpan Draft
+                                                        </SelectItem>
+                                                    </SelectGroup>
+                                                </SelectContent>
+                                            </Select>
+                                            <InputError
+                                                message={errors.status}
+                                            />
+                                        </div>
+
                                         <div className="grid gap-5 md:grid-cols-2">
                                             <div className={fieldClassName}>
                                                 <Label
@@ -265,33 +360,135 @@ export default function SellerProductCreate({
                                                 />
                                             </div>
 
+                                            {salesMethod === 'self_managed' ? (
+                                                <div className={fieldClassName}>
+                                                    <Label
+                                                        htmlFor="stock"
+                                                        className={
+                                                            labelClassName
+                                                        }
+                                                    >
+                                                        Stok
+                                                    </Label>
+                                                    <Input
+                                                        id="stock"
+                                                        name="stock"
+                                                        type="number"
+                                                        required
+                                                        min={0}
+                                                        max={100000}
+                                                        step={1}
+                                                        inputMode="numeric"
+                                                        placeholder="10"
+                                                        className={
+                                                            inputClassName
+                                                        }
+                                                        aria-invalid={Boolean(
+                                                            errors.stock,
+                                                        )}
+                                                    />
+                                                    <InputError
+                                                        message={errors.stock}
+                                                    />
+                                                </div>
+                                            ) : (
+                                                <div className={fieldClassName}>
+                                                    <Label
+                                                        htmlFor="requested_quantity"
+                                                        className={
+                                                            labelClassName
+                                                        }
+                                                    >
+                                                        Jumlah Titip
+                                                    </Label>
+                                                    <Input
+                                                        id="requested_quantity"
+                                                        name="requested_quantity"
+                                                        type="number"
+                                                        required
+                                                        min={1}
+                                                        max={100000}
+                                                        step={1}
+                                                        inputMode="numeric"
+                                                        placeholder="20"
+                                                        className={
+                                                            inputClassName
+                                                        }
+                                                        aria-invalid={Boolean(
+                                                            errors.requested_quantity,
+                                                        )}
+                                                    />
+                                                    <InputError
+                                                        message={
+                                                            errors.requested_quantity
+                                                        }
+                                                    />
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {salesMethod === 'up_jurusan' && (
                                             <div className={fieldClassName}>
                                                 <Label
-                                                    htmlFor="stock"
+                                                    htmlFor="up_jurusan_id"
                                                     className={labelClassName}
                                                 >
-                                                    Stok
+                                                    UP Jurusan
                                                 </Label>
-                                                <Input
-                                                    id="stock"
-                                                    name="stock"
-                                                    type="number"
+                                                <Select
+                                                    name="up_jurusan_id"
+                                                    value={upJurusanId}
+                                                    onValueChange={
+                                                        setUpJurusanId
+                                                    }
                                                     required
-                                                    min={0}
-                                                    max={100000}
-                                                    step={1}
-                                                    inputMode="numeric"
-                                                    placeholder="10"
-                                                    className={inputClassName}
-                                                    aria-invalid={Boolean(
-                                                        errors.stock,
-                                                    )}
-                                                />
+                                                >
+                                                    <SelectTrigger
+                                                        id="up_jurusan_id"
+                                                        className={
+                                                            selectTriggerClassName
+                                                        }
+                                                        aria-invalid={Boolean(
+                                                            errors.up_jurusan_id,
+                                                        )}
+                                                    >
+                                                        <SelectValue placeholder="Pilih UP Jurusan" />
+                                                    </SelectTrigger>
+                                                    <SelectContent
+                                                        style={
+                                                            selectPortalTheme
+                                                        }
+                                                    >
+                                                        <SelectGroup>
+                                                            <SelectLabel>
+                                                                UP Jurusan
+                                                            </SelectLabel>
+                                                            {upJurusans.map(
+                                                                (up) => (
+                                                                    <SelectItem
+                                                                        key={
+                                                                            up.id
+                                                                        }
+                                                                        value={String(
+                                                                            up.id,
+                                                                        )}
+                                                                    >
+                                                                        {
+                                                                            up.name
+                                                                        }
+                                                                    </SelectItem>
+                                                                ),
+                                                            )}
+                                                        </SelectGroup>
+                                                    </SelectContent>
+                                                </Select>
                                                 <InputError
-                                                    message={errors.stock}
+                                                    message={
+                                                        errors.up_jurusan_id
+                                                    }
                                                 />
                                             </div>
-                                        </div>
+                                        )}
 
                                         <div className={fieldClassName}>
                                             <Label

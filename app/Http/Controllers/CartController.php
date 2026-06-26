@@ -20,7 +20,7 @@ class CartController extends Controller
         $user = $request->user();
 
         $items = CartItem::query()
-            ->with(['product.category:id,name,slug', 'product.seller:id,name'])
+            ->with(['product.category:id,name,slug', 'product.seller:id,name', 'product.upJurusan:id,name'])
             ->where('user_id', $user->id)
             ->latest()
             ->get()
@@ -33,12 +33,9 @@ class CartController extends Controller
                     'name' => $cartItem->product->name,
                     'slug' => $cartItem->product->slug,
                     'price' => $cartItem->product->price,
-                    'stock' => $cartItem->product->stock,
+                    'stock' => $cartItem->product->availableStock(),
                     'image' => $cartItem->product->image,
-                    'seller' => [
-                        'id' => $cartItem->product->seller->id,
-                        'name' => $cartItem->product->seller->name,
-                    ],
+                    'seller' => $this->ownerPayload($cartItem->product),
                     'category' => [
                         'id' => $cartItem->product->category->id,
                         'name' => $cartItem->product->category->name,
@@ -70,19 +67,23 @@ class CartController extends Controller
             ->first();
         $nextQuantity = $quantity + ($cartItem->quantity ?? 0);
 
-        $this->ensureQuantityDoesNotExceedStock($nextQuantity, $product->stock);
+        $this->ensureQuantityDoesNotExceedStock($nextQuantity, $product->availableStock());
 
         if ($cartItem) {
             $cartItem->update(['quantity' => $nextQuantity]);
         } else {
-            CartItem::query()->create([
+            $cartItem = CartItem::query()->create([
                 'user_id' => $user->id,
                 'product_id' => $product->id,
                 'quantity' => $quantity,
             ]);
         }
 
-        return to_route('cart.index');
+        if ($request->input('redirect_to') === 'checkout.confirm') {
+            return to_route('checkout.confirm', ['items' => (string) $cartItem->id]);
+        }
+
+        return back(302, [], route('cart.index'))->with('success', 'Produk ditambahkan ke keranjang.');
     }
 
     public function update(Request $request, CartItem $cartItem): RedirectResponse
@@ -95,7 +96,7 @@ class CartController extends Controller
         $cartItem->load('product');
         $quantity = $this->validatedQuantity($request);
 
-        $this->ensureQuantityDoesNotExceedStock($quantity, $cartItem->product->stock);
+        $this->ensureQuantityDoesNotExceedStock($quantity, $cartItem->product->availableStock());
 
         $cartItem->update(['quantity' => $quantity]);
 
@@ -132,5 +133,17 @@ class CartController extends Controller
         throw ValidationException::withMessages([
             'quantity' => 'Quantity tidak boleh melebihi stok tersedia.',
         ]);
+    }
+
+    /**
+     * @return array{id: int, name: string}
+     */
+    private function ownerPayload(Product $product): array
+    {
+        if ($product->seller) {
+            return ['id' => $product->seller->id, 'name' => $product->seller->name];
+        }
+
+        return ['id' => $product->upJurusan->id, 'name' => $product->upJurusan->name];
     }
 }

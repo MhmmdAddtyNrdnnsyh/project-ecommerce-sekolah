@@ -66,6 +66,7 @@ test('admin can approve a pending product and buyer catalog shows it', function 
             'name' => 'Pulpen Gel Hitam',
             'slug' => 'pulpen-gel-hitam',
             'status' => ProductStatus::Pending,
+            'stock' => 10,
             'rejection_reason' => 'Butuh foto lebih jelas',
         ]);
 

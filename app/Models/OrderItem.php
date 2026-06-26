@@ -2,7 +2,10 @@
 
 namespace App\Models;
 
+use App\Enums\OrderItemStatus;
+use Database\Factories\OrderItemFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -14,12 +17,16 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $price
  * @property int $quantity
  * @property int $subtotal
+ * @property OrderItemStatus $status
  * @property Order $order
  * @property Product $product
  */
-#[Fillable(['order_id', 'product_id', 'product_name', 'price', 'quantity', 'subtotal'])]
+#[Fillable(['order_id', 'product_id', 'product_name', 'price', 'quantity', 'subtotal', 'status'])]
 class OrderItem extends Model
 {
+    /** @use HasFactory<OrderItemFactory> */
+    use HasFactory;
+
     /**
      * @return array<string, string>
      */
@@ -29,6 +36,7 @@ class OrderItem extends Model
             'price' => 'integer',
             'quantity' => 'integer',
             'subtotal' => 'integer',
+            'status' => OrderItemStatus::class,
         ];
     }
 

@@ -40,6 +40,34 @@ test('seller users are redirected to the seller dashboard after login', function
     $response->assertRedirect(route('seller.dashboard', absolute: false));
 });
 
+test('admin jurusan users are redirected to dashboard after login', function () {
+    $user = User::factory()->create([
+        'role' => UserRole::AdminJurusan,
+    ]);
+
+    $response = $this->post(route('login.store'), [
+        'email' => $user->email,
+        'password' => 'password',
+    ]);
+
+    $this->assertAuthenticated();
+    $response->assertRedirect(route('admin-jurusan.dashboard', absolute: false));
+});
+
+test('picket officer users are redirected to picket dashboard after login', function () {
+    $user = User::factory()->create([
+        'role' => UserRole::PicketOfficer,
+    ]);
+
+    $response = $this->post(route('login.store'), [
+        'email' => $user->email,
+        'password' => 'password',
+    ]);
+
+    $this->assertAuthenticated();
+    $response->assertRedirect(route('picket.dashboard', absolute: false));
+});
+
 test('seller users are not redirected to the admin dashboard from intended url', function () {
     $user = User::factory()->create([
         'role' => UserRole::Seller,

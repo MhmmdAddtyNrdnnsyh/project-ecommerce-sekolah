@@ -12,7 +12,9 @@ class AuthRedirect
     {
         return match ($user?->role) {
             UserRole::Admin => route('dashboard', absolute: false),
+            UserRole::AdminJurusan => route('admin-jurusan.dashboard', absolute: false),
             UserRole::Seller => route('seller.dashboard', absolute: false),
+            UserRole::PicketOfficer => route('picket.dashboard', absolute: false),
             default => route('home', absolute: false),
         };
     }
@@ -71,7 +73,16 @@ class AuthRedirect
 
         return match ($pathOnly) {
             route('dashboard', absolute: false) => $user?->role === UserRole::Admin,
+            route('admin-jurusan.dashboard', absolute: false) => $user?->role === UserRole::AdminJurusan,
+            route('admin-jurusan.up-jurusan.index', absolute: false) => $user?->role === UserRole::AdminJurusan,
+            route('admin-jurusan.consignments.index', absolute: false) => $user?->role === UserRole::AdminJurusan,
+            route('admin-jurusan.reports.index', absolute: false) => $user?->role === UserRole::AdminJurusan,
             route('seller.dashboard', absolute: false) => $user?->role === UserRole::Seller,
+            route('picket.dashboard', absolute: false) => $user?->role === UserRole::PicketOfficer,
+            route('picket.pos', absolute: false) => $user?->role === UserRole::PicketOfficer,
+            route('picket.orders', absolute: false) => $user?->role === UserRole::PicketOfficer,
+            route('picket.reports', absolute: false) => $user?->role === UserRole::PicketOfficer,
+            route('picket.up-jurusan.consignments.index', absolute: false) => $user?->role === UserRole::PicketOfficer,
             default => true,
         };
     }

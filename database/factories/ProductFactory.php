@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\ProductSalesMethod;
 use App\Enums\ProductStatus;
 use App\Enums\UserRole;
 use App\Models\Category;
@@ -32,6 +33,7 @@ class ProductFactory extends Factory
             'description' => fake()->paragraph(),
             'price' => fake()->numberBetween(5_000, 250_000),
             'stock' => fake()->numberBetween(0, 50),
+            'sales_method' => ProductSalesMethod::SelfManaged,
             'status' => fake()->randomElement(ProductStatus::cases()),
             'image' => null,
         ];

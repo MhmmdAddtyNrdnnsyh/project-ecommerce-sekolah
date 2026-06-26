@@ -1,15 +1,16 @@
 import { Link, usePage } from '@inertiajs/react';
 import {
-    BarChart3,
     Boxes,
     ClipboardCheck,
+    ClipboardList,
+    FileText,
     LayoutDashboard,
-    MessageSquareText,
     Package,
     Settings,
     ShoppingCart,
     Tags,
     Users,
+    Warehouse,
 } from 'lucide-react';
 import type { CSSProperties } from 'react';
 import AppLogo from '@/components/app-logo';
@@ -28,8 +29,11 @@ import { dashboard } from '@/routes';
 import { index as adminProductModerationIndex } from '@/routes/admin/products/moderation';
 import { index as cartIndex } from '@/routes/cart';
 import { index as catalogIndex } from '@/routes/catalog';
+import { index as ordersIndex } from '@/routes/orders';
 import { edit } from '@/routes/profile';
 import { dashboard as sellerDashboard } from '@/routes/seller';
+import { index as sellerInventoryIndex } from '@/routes/seller/inventory';
+import { index as sellerOrdersIndex } from '@/routes/seller/orders';
 import { index as sellerProductsIndex } from '@/routes/seller/products';
 import type { NavItem } from '@/types';
 
@@ -39,11 +43,23 @@ const lightTooltip = {
 };
 
 export function AppSidebar() {
-    const { auth } = usePage().props;
-    const { isCurrentUrl } = useCurrentUrl();
+    const { auth, buyerHeader } = usePage().props;
+    const { isCurrentOrParentUrl } = useCurrentUrl();
     const dashboardHref =
-        auth.user?.role === 'seller' ? sellerDashboard() : dashboard();
+        auth.user?.role === 'seller'
+            ? sellerDashboard()
+            : auth.user?.role === 'admin'
+              ? dashboard()
+              : auth.user?.role === 'admin_jurusan'
+                ? '/admin-jurusan/dashboard'
+                : auth.user?.role === 'picket_officer'
+                  ? '/picket/dashboard'
+                  : catalogIndex();
     const mainNavItems = getMainNavItems(auth.user?.role, dashboardHref);
+    const activeHref = mainNavItems
+        .filter((item) => isCurrentOrParentUrl(item.href))
+        .map((item) => toUrl(item.href))
+        .sort((a, b) => b.length - a.length)[0];
 
     return (
         <Sidebar
@@ -82,7 +98,7 @@ export function AppSidebar() {
                 <SidebarMenu className="gap-1">
                     {mainNavItems.map((item) => {
                         const href = toUrl(item.href);
-                        const isActive = isCurrentUrl(item.href);
+                        const isActive = href === activeHref;
 
                         return (
                             <SidebarMenuItem key={item.title}>
@@ -107,6 +123,17 @@ export function AppSidebar() {
                                         <Link href={item.href} prefetch>
                                             {item.icon && <item.icon />}
                                             <span>{item.title}</span>
+                                            {auth.user?.role === 'buyer' &&
+                                                item.title === 'Cart' &&
+                                                Boolean(
+                                                    buyerHeader?.cartItemsCount,
+                                                ) && (
+                                                    <span className="ml-auto rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700">
+                                                        {
+                                                            buyerHeader?.cartItemsCount
+                                                        }
+                                                    </span>
+                                                )}
                                         </Link>
                                     )}
                                 </SidebarMenuButton>
@@ -116,25 +143,27 @@ export function AppSidebar() {
                 </SidebarMenu>
             </SidebarContent>
 
-            <SidebarFooter className="border-t border-slate-100 p-3">
-                <SidebarMenu>
-                    <SidebarMenuItem>
-                        <SidebarMenuButton
-                            asChild
-                            tooltip={{
-                                children: 'Settings',
-                                ...lightTooltip,
-                            }}
-                            className="h-11 rounded-[8px] px-3 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                        >
-                            <Link href={edit()} prefetch>
-                                <Settings />
-                                <span>Settings</span>
-                            </Link>
-                        </SidebarMenuButton>
-                    </SidebarMenuItem>
-                </SidebarMenu>
-            </SidebarFooter>
+            {auth.user && (
+                <SidebarFooter className="border-t border-slate-100 p-3">
+                    <SidebarMenu>
+                        <SidebarMenuItem>
+                            <SidebarMenuButton
+                                asChild
+                                tooltip={{
+                                    children: 'Settings',
+                                    ...lightTooltip,
+                                }}
+                                className="h-11 rounded-[8px] px-3 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                            >
+                                <Link href={edit()} prefetch>
+                                    <Settings />
+                                    <span>Settings</span>
+                                </Link>
+                            </SidebarMenuButton>
+                        </SidebarMenuItem>
+                    </SidebarMenu>
+                </SidebarFooter>
+            )}
         </Sidebar>
     );
 }
@@ -151,10 +180,13 @@ function getMainNavItems(
                 icon: LayoutDashboard,
             },
             { title: 'Products', href: sellerProductsIndex(), icon: Package },
-            { title: 'Orders', href: '#orders', icon: ShoppingCart },
-            { title: 'Inventory', href: '#inventory', icon: Boxes },
-            { title: 'Reviews', href: '#reviews', icon: MessageSquareText },
-            { title: 'Reports', href: '#reports', icon: BarChart3 },
+            { title: 'Orders', href: sellerOrdersIndex(), icon: ShoppingCart },
+            { title: 'Inventory', href: sellerInventoryIndex(), icon: Boxes },
+            {
+                title: 'Titip Barang',
+                href: '/seller/consignments',
+                icon: ClipboardList,
+            },
         ];
     }
 
@@ -172,8 +204,68 @@ function getMainNavItems(
             },
             {
                 title: 'Orders',
-                href: '#orders',
+                href: ordersIndex(),
                 icon: ShoppingCart,
+            },
+        ];
+    }
+
+    if (!role) {
+        return [
+            {
+                title: 'Katalog',
+                href: catalogIndex(),
+                icon: Package,
+            },
+        ];
+    }
+
+    if (role === 'admin_jurusan') {
+        return [
+            {
+                title: 'Dashboard',
+                href: dashboardHref,
+                icon: LayoutDashboard,
+            },
+            {
+                title: 'UP Jurusan',
+                href: '/admin-jurusan/up-jurusan',
+                icon: Warehouse,
+            },
+            {
+                title: 'Request Titip',
+                href: '/admin-jurusan/consignments',
+                icon: ClipboardCheck,
+            },
+            {
+                title: 'Laporan',
+                href: '/admin-jurusan/reports',
+                icon: FileText,
+            },
+        ];
+    }
+
+    if (role === 'picket_officer') {
+        return [
+            {
+                title: 'Dashboard',
+                href: '/picket/dashboard',
+                icon: LayoutDashboard,
+            },
+            {
+                title: 'POS Terminal',
+                href: '/picket/pos',
+                icon: ShoppingCart,
+            },
+            {
+                title: 'Orders',
+                href: '/picket/orders',
+                icon: ClipboardList,
+            },
+            {
+                title: 'Reports',
+                href: '/picket/reports',
+                icon: FileText,
             },
         ];
     }
@@ -189,11 +281,9 @@ function getMainNavItems(
             href: adminProductModerationIndex(),
             icon: ClipboardCheck,
         },
-        { title: 'Products', href: '#products', icon: Package },
-        { title: 'Categories', href: '#categories', icon: Tags },
-        { title: 'Orders', href: '#orders', icon: ShoppingCart },
-        { title: 'Users', href: '#users', icon: Users },
-        { title: 'Reviews', href: '#reviews', icon: MessageSquareText },
-        { title: 'Reports', href: '#reports', icon: BarChart3 },
+        { title: 'Products', href: '/admin/products', icon: Package },
+        { title: 'Categories', href: '/admin/categories', icon: Tags },
+        { title: 'Orders', href: '/admin/orders', icon: ShoppingCart },
+        { title: 'Users', href: '/admin/users', icon: Users },
     ];
 }

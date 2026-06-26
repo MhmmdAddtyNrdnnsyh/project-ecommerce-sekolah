@@ -21,7 +21,6 @@ class ProductCatalogSeeder extends Seeder
             [
                 'name' => 'Seller EduCart',
                 'role' => UserRole::Seller,
-                'email_verified_at' => now(),
                 'password' => 'password',
             ],
         );

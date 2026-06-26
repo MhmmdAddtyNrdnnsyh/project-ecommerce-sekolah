@@ -1,6 +1,13 @@
 <?php
 
+use App\Enums\UserRole;
+use App\Models\CartItem;
+use App\Models\Order;
+use App\Models\OrderItem;
+use App\Models\Product;
 use App\Models\User;
+use Illuminate\Support\Facades\Route;
+use Inertia\Testing\AssertableInertia as Assert;
 
 test('profile page is displayed', function () {
     $user = User::factory()->create();
@@ -9,7 +16,12 @@ test('profile page is displayed', function () {
         ->actingAs($user)
         ->get(route('profile.edit'));
 
-    $response->assertOk();
+    $response
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('settings/profile')
+            ->missing('mustVerifyEmail'),
+        );
 });
 
 test('profile information can be updated', function () {
@@ -30,24 +42,6 @@ test('profile information can be updated', function () {
 
     expect($user->name)->toBe('Test User');
     expect($user->email)->toBe('test@example.com');
-    expect($user->email_verified_at)->toBeNull();
-});
-
-test('email verification status is unchanged when the email address is unchanged', function () {
-    $user = User::factory()->create();
-
-    $response = $this
-        ->actingAs($user)
-        ->patch(route('profile.update'), [
-            'name' => 'Test User',
-            'email' => $user->email,
-        ]);
-
-    $response
-        ->assertSessionHasNoErrors()
-        ->assertRedirect(route('profile.edit'));
-
-    expect($user->refresh()->email_verified_at)->not->toBeNull();
 });
 
 test('user can delete their account', function () {
@@ -67,6 +61,33 @@ test('user can delete their account', function () {
     expect($user->fresh())->toBeNull();
 });
 
+test('buyer can safely delete account with cart and orders', function () {
+    $user = User::factory()->create(['role' => UserRole::Buyer]);
+    $product = Product::factory()->approved()->create();
+    $order = Order::factory()->for($user)->create();
+
+    CartItem::query()->create([
+        'user_id' => $user->id,
+        'product_id' => $product->id,
+        'quantity' => 1,
+    ]);
+    OrderItem::factory()->for($order)->for($product)->create();
+
+    $this
+        ->actingAs($user)
+        ->delete(route('profile.destroy'), [
+            'password' => 'password',
+        ])
+        ->assertSessionHasNoErrors()
+        ->assertRedirect(route('home'));
+
+    $this->assertGuest();
+    expect($user->fresh())->toBeNull();
+    $this->assertDatabaseMissing('cart_items', ['user_id' => $user->id]);
+    $this->assertDatabaseMissing('orders', ['user_id' => $user->id]);
+    $this->assertDatabaseMissing('order_items', ['order_id' => $order->id]);
+});
+
 test('correct password must be provided to delete account', function () {
     $user = User::factory()->create();
 
@@ -82,4 +103,10 @@ test('correct password must be provided to delete account', function () {
         ->assertRedirect(route('profile.edit'));
 
     expect($user->fresh())->not->toBeNull();
+});
+
+test('email verification routes stay removed', function () {
+    expect(Route::has('verification.notice'))->toBeFalse();
+    expect(Route::has('verification.send'))->toBeFalse();
+    expect(Route::has('verification.verify'))->toBeFalse();
 });

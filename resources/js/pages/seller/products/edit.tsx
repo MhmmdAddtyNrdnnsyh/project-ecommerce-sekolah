@@ -274,65 +274,36 @@ export default function SellerProductEdit({
                                             />
                                         </div>
 
-                                        <div className="grid gap-5 md:grid-cols-2">
-                                            <div className={fieldClassName}>
-                                                <Label
-                                                    htmlFor="price"
-                                                    className={labelClassName}
-                                                >
-                                                    Harga
-                                                </Label>
-                                                <div className="relative">
-                                                    <CircleDollarSign className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" />
-                                                    <Input
-                                                        id="price"
-                                                        name="price"
-                                                        type="number"
-                                                        required
-                                                        min={1}
-                                                        max={100000000}
-                                                        step={1}
-                                                        inputMode="numeric"
-                                                        defaultValue={
-                                                            product.price
-                                                        }
-                                                        className={`${inputClassName} pl-9`}
-                                                        aria-invalid={Boolean(
-                                                            errors.price,
-                                                        )}
-                                                    />
-                                                </div>
-                                                <InputError
-                                                    message={errors.price}
-                                                />
-                                            </div>
-
-                                            <div className={fieldClassName}>
-                                                <Label
-                                                    htmlFor="stock"
-                                                    className={labelClassName}
-                                                >
-                                                    Stok
-                                                </Label>
+                                        <div className={fieldClassName}>
+                                            <Label
+                                                htmlFor="price"
+                                                className={labelClassName}
+                                            >
+                                                Harga
+                                            </Label>
+                                            <div className="relative">
+                                                <CircleDollarSign className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" />
                                                 <Input
-                                                    id="stock"
-                                                    name="stock"
+                                                    id="price"
+                                                    name="price"
                                                     type="number"
                                                     required
-                                                    min={0}
-                                                    max={100000}
+                                                    min={1}
+                                                    max={100000000}
                                                     step={1}
                                                     inputMode="numeric"
-                                                    defaultValue={product.stock}
-                                                    className={inputClassName}
+                                                    defaultValue={
+                                                        product.price
+                                                    }
+                                                    className={`${inputClassName} pl-9`}
                                                     aria-invalid={Boolean(
-                                                        errors.stock,
+                                                        errors.price,
                                                     )}
                                                 />
-                                                <InputError
-                                                    message={errors.stock}
-                                                />
                                             </div>
+                                            <InputError
+                                                message={errors.price}
+                                            />
                                         </div>
 
                                         <div className={fieldClassName}>

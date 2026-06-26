@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\ProductSalesMethod;
 use App\Enums\ProductStatus;
 use Database\Factories\ProductFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -12,22 +13,27 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * @property int $id
- * @property int $seller_id
+ * @property int|null $seller_id
+ * @property int|null $up_jurusan_id
  * @property int $category_id
  * @property string $name
  * @property string $slug
  * @property string $description
  * @property int $price
  * @property int $stock
+ * @property ProductSalesMethod $sales_method
  * @property ProductStatus $status
  * @property string|null $rejection_reason
  * @property string|null $image
- * @property User $seller
+ * @property User|null $seller
+ * @property UpJurusan|null $upJurusan
  * @property Category $category
  */
-#[Fillable(['seller_id', 'category_id', 'name', 'slug', 'description', 'price', 'stock', 'status', 'rejection_reason', 'image'])]
+#[Fillable(['seller_id', 'up_jurusan_id', 'category_id', 'name', 'slug', 'description', 'price', 'stock', 'sales_method', 'status', 'rejection_reason', 'image'])]
 class Product extends Model
 {
+    public const int LOW_STOCK_THRESHOLD = 5;
+
     /** @use HasFactory<ProductFactory> */
     use HasFactory;
 
@@ -39,6 +45,7 @@ class Product extends Model
         return [
             'price' => 'integer',
             'stock' => 'integer',
+            'sales_method' => ProductSalesMethod::class,
             'status' => ProductStatus::class,
         ];
     }
@@ -49,6 +56,14 @@ class Product extends Model
     public function seller(): BelongsTo
     {
         return $this->belongsTo(User::class, 'seller_id');
+    }
+
+    /**
+     * @return BelongsTo<UpJurusan, $this>
+     */
+    public function upJurusan(): BelongsTo
+    {
+        return $this->belongsTo(UpJurusan::class);
     }
 
     /**
@@ -73,5 +88,29 @@ class Product extends Model
     public function orderItems(): HasMany
     {
         return $this->hasMany(OrderItem::class);
+    }
+
+    /**
+     * @return HasMany<UpJurusanConsignment, $this>
+     */
+    public function upJurusanConsignments(): HasMany
+    {
+        return $this->hasMany(UpJurusanConsignment::class);
+    }
+
+    public function usesConsignmentStock(): bool
+    {
+        return $this->sales_method === ProductSalesMethod::UpJurusan && $this->seller_id !== null;
+    }
+
+    public function availableStock(): int
+    {
+        if (! $this->usesConsignmentStock()) {
+            return $this->stock;
+        }
+
+        return (int) $this->upJurusanConsignments()
+            ->selectRaw('COALESCE(SUM(received_quantity - sold_quantity), 0) as available')
+            ->value('available');
     }
 }

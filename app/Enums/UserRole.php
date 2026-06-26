@@ -7,6 +7,7 @@ enum UserRole: string
     case Admin = 'admin';
     case Seller = 'seller';
     case Buyer = 'buyer';
+    case AdminJurusan = 'admin_jurusan';
     case PicketOfficer = 'picket_officer';
 
     public function label(): string
@@ -15,6 +16,7 @@ enum UserRole: string
             self::Admin => 'Admin',
             self::Seller => 'Seller',
             self::Buyer => 'Buyer',
+            self::AdminJurusan => 'Admin Jurusan',
             self::PicketOfficer => 'Petugas Piket',
         };
     }

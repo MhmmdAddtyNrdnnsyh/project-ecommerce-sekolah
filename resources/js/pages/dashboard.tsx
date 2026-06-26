@@ -7,7 +7,6 @@ import {
     CheckCircle2,
     ClipboardCheck,
     Clock3,
-    Download,
     FileWarning,
     PackageCheck,
     School,
@@ -44,13 +43,6 @@ import {
     ChartTooltipContent,
 } from '@/components/ui/chart';
 import type { ChartConfig } from '@/components/ui/chart';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
 import {
     Table,
     TableBody,
@@ -301,32 +293,6 @@ export default function Dashboard({ dashboard: data }: DashboardProps) {
                                 Ringkasan operasional EduCart untuk user,
                                 seller, produk, transaksi, dan antrian moderasi.
                             </p>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2">
-                            <Select defaultValue="today">
-                                <SelectTrigger className="h-9 w-36 rounded-[8px] border border-slate-200 bg-white">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent className="rounded-[8px] bg-white text-slate-900 ring-slate-200">
-                                    <SelectItem value="today">
-                                        Hari ini
-                                    </SelectItem>
-                                    <SelectItem value="week">
-                                        Minggu ini
-                                    </SelectItem>
-                                    <SelectItem value="month">
-                                        Bulan ini
-                                    </SelectItem>
-                                </SelectContent>
-                            </Select>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                className="h-9 rounded-[8px] border-slate-200 bg-white"
-                            >
-                                <Download className="size-4" />
-                                Laporan
-                            </Button>
                         </div>
                     </section>
 

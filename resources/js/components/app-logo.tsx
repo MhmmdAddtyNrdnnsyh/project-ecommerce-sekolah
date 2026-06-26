@@ -1,6 +1,14 @@
 import { ShoppingBag } from 'lucide-react';
 
-export default function AppLogo() {
+type Props = {
+    title?: string;
+    subtitle?: string | null;
+};
+
+export default function AppLogo({
+    title = 'EduCart Admin',
+    subtitle = 'Management Portal',
+}: Props) {
     return (
         <>
             <div className="flex aspect-square size-10 shrink-0 items-center justify-center rounded-[8px] bg-blue-500 text-white shadow-sm">
@@ -8,11 +16,13 @@ export default function AppLogo() {
             </div>
             <div className="ml-1 grid flex-1 text-left">
                 <span className="truncate text-sm leading-tight font-semibold text-inherit">
-                    EduCart Admin
+                    {title}
                 </span>
-                <span className="truncate text-xs leading-tight text-current/60">
-                    Management Portal
-                </span>
+                {subtitle && (
+                    <span className="truncate text-xs leading-tight text-current/60">
+                        {subtitle}
+                    </span>
+                )}
             </div>
         </>
     );

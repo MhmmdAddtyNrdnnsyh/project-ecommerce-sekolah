@@ -5,10 +5,9 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Spinner } from '@/components/ui/spinner';
-import { login } from '@/routes';
-import { index as cartIndex } from '@/routes/cart';
+import { home, login } from '@/routes';
 import { store as storeCartItem } from '@/routes/cart/items';
-import { index as catalogIndex } from '@/routes/catalog';
+import { confirm as checkoutConfirm } from '@/routes/checkout';
 import type { Auth } from '@/types';
 
 type CatalogProduct = {
@@ -22,12 +21,21 @@ type CatalogProduct = {
     seller: {
         id: number;
         name: string;
+    } | null;
+    owner: {
+        id: number;
+        name: string;
+        type: 'seller' | 'up_jurusan';
     };
     category: {
         id: number;
         name: string;
         slug: string;
     };
+    pickup_place: {
+        id: number;
+        name: string;
+    } | null;
 };
 
 type CatalogShowProps = {
@@ -36,6 +44,10 @@ type CatalogShowProps = {
 
 type PageProps = {
     auth: Auth;
+    flash: {
+        success?: string;
+        error?: string;
+    };
 };
 
 const formatRupiah = (value: number) =>
@@ -56,62 +68,32 @@ const imageSource = (image: string | null) => {
 };
 
 export default function CatalogShow({ product }: CatalogShowProps) {
-    const { auth } = usePage<PageProps>().props;
+    const { auth, flash } = usePage<PageProps>().props;
     const src = imageSource(product.image);
     const isOutOfStock = product.stock <= 0;
+    const isBuyer = auth.user?.role === 'buyer';
 
     return (
         <>
             <Head title={product.name} />
-            <main className="min-h-screen bg-slate-50">
-                <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-5 sm:px-6 lg:px-8">
-                    <header className="flex flex-col gap-4 border-b border-slate-200 pb-5 sm:flex-row sm:items-center sm:justify-between">
-                        <Link
-                            href="/"
-                            className="flex w-fit items-center gap-3 text-slate-950"
+            <main className="min-h-[calc(100svh-4rem)] bg-slate-50">
+                <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
+                    <div>
+                        <Button
+                            asChild
+                            variant="outline"
+                            className="h-10 w-fit rounded-[8px] border-slate-200 bg-white"
                         >
-                            <span className="flex size-10 items-center justify-center rounded-[8px] bg-[#0080FF] text-white">
-                                <Package className="size-5" />
-                            </span>
-                            <span>
-                                <span className="block text-lg leading-tight font-semibold">
-                                    EduCart
-                                </span>
-                                <span className="block text-xs font-medium text-slate-500">
-                                    Detail produk
-                                </span>
-                            </span>
-                        </Link>
+                            <Link href={home()}>
+                                <ArrowLeft className="size-4" />
+                                Home
+                            </Link>
+                        </Button>
+                    </div>
 
-                        <div className="flex flex-wrap items-center gap-2">
-                            {auth.user && (
-                                <Button
-                                    asChild
-                                    variant="outline"
-                                    className="h-10 w-fit rounded-[8px] border-slate-200 bg-white"
-                                >
-                                    <Link href={cartIndex()}>
-                                        <ShoppingCart className="size-4" />
-                                        Cart
-                                    </Link>
-                                </Button>
-                            )}
-                            <Button
-                                asChild
-                                variant="outline"
-                                className="h-10 w-fit rounded-[8px] border-slate-200 bg-white"
-                            >
-                                <Link href={catalogIndex()}>
-                                    <ArrowLeft className="size-4" />
-                                    Katalog
-                                </Link>
-                            </Button>
-                        </div>
-                    </header>
-
-                    <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_440px] lg:items-start">
+                    <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_420px] lg:items-start">
                         <div className="overflow-hidden rounded-[8px] border border-slate-200 bg-white shadow-sm">
-                            <div className="aspect-[4/3] bg-slate-100">
+                            <div className="aspect-square bg-slate-100">
                                 {src ? (
                                     <img
                                         src={src}
@@ -126,18 +108,31 @@ export default function CatalogShow({ product }: CatalogShowProps) {
                             </div>
                         </div>
 
-                        <Card className="rounded-[8px] border border-slate-200 bg-white py-0 shadow-sm">
+                        <Card className="rounded-[8px] border border-slate-200 bg-white py-0 shadow-sm lg:sticky lg:top-24">
                             <CardContent className="space-y-6 p-5 sm:p-6">
+                                {(flash.success || flash.error) && (
+                                    <div
+                                        className={`rounded-[8px] border px-4 py-3 text-sm ${
+                                            flash.error
+                                                ? 'border-rose-200 bg-rose-50 text-rose-700'
+                                                : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                                        }`}
+                                        role="status"
+                                    >
+                                        {flash.error || flash.success}
+                                    </div>
+                                )}
+
                                 <div className="flex flex-wrap gap-2">
-                                    <Badge className="rounded-[6px] bg-blue-50 text-blue-700">
+                                    <Badge className="rounded-full bg-blue-50 text-blue-700">
                                         <Tags className="size-3.5" />
                                         {product.category.name}
                                     </Badge>
                                     <Badge
                                         className={
                                             isOutOfStock
-                                                ? 'rounded-[6px] bg-orange-50 text-orange-700'
-                                                : 'rounded-[6px] bg-emerald-50 text-emerald-700'
+                                                ? 'rounded-full bg-orange-50 text-orange-700'
+                                                : 'rounded-full bg-emerald-50 text-emerald-700'
                                         }
                                     >
                                         {isOutOfStock
@@ -152,61 +147,109 @@ export default function CatalogShow({ product }: CatalogShowProps) {
                                     </h1>
                                     <p className="mt-3 flex items-center gap-1.5 text-sm font-medium text-slate-500">
                                         <Store className="size-4" />
-                                        {product.seller.name}
+                                        {product.owner.name}
                                     </p>
                                 </div>
 
                                 <div>
-                                    <p className="text-3xl font-semibold text-slate-950">
+                                    <p className="text-3xl font-semibold text-slate-950 tabular-nums">
                                         {formatRupiah(product.price)}
                                     </p>
                                     <p className="mt-1 text-sm text-slate-500">
-                                        Harga produk dari seller EduCart.
+                                        Harga produk dari {product.owner.name}.
+                                    </p>
+                                    <p className="mt-2 flex items-center gap-1.5 text-sm text-slate-500">
+                                        <Store className="size-4" />
+                                        Ambil di{' '}
+                                        {product.pickup_place?.name ??
+                                            'titik pickup sekolah'}
                                     </p>
                                 </div>
 
-                                {auth.user ? (
-                                    <Form
-                                        {...storeCartItem.form(product.slug)}
-                                        disableWhileProcessing
-                                        className="space-y-2"
-                                    >
-                                        {({ processing, errors }) => (
-                                            <>
-                                                <input
-                                                    type="hidden"
-                                                    name="quantity"
-                                                    value="1"
-                                                    readOnly
-                                                />
+                                {isBuyer ? (
+                                    <div className="space-y-2">
+                                        <div className="flex flex-wrap gap-2">
+                                            {isOutOfStock ? (
                                                 <Button
-                                                    type="submit"
-                                                    disabled={
-                                                        isOutOfStock ||
-                                                        processing
-                                                    }
-                                                    className="h-11 w-full rounded-[8px] bg-[#0080FF] hover:bg-[#006FE0]"
+                                                    type="button"
+                                                    disabled
+                                                    className="h-11 w-fit rounded-full bg-[#0080FF] px-5 hover:bg-[#006FE0]"
                                                 >
-                                                    {processing ? (
-                                                        <Spinner />
-                                                    ) : (
-                                                        <ShoppingCart className="size-4" />
-                                                    )}
-                                                    {isOutOfStock
-                                                        ? 'Stok habis'
-                                                        : 'Tambah ke cart'}
+                                                    Stok habis
                                                 </Button>
-                                                <InputError
-                                                    message={errors.quantity}
-                                                />
-                                            </>
-                                        )}
-                                    </Form>
+                                            ) : (
+                                                <Button
+                                                    asChild
+                                                    className="h-11 w-fit rounded-full bg-[#0080FF] px-5 hover:bg-[#006FE0]"
+                                                >
+                                                    <Link
+                                                        href={checkoutConfirm({
+                                                            query: {
+                                                                product:
+                                                                    product.slug,
+                                                            },
+                                                        })}
+                                                    >
+                                                        Beli sekarang
+                                                    </Link>
+                                                </Button>
+                                            )}
+
+                                            <Form
+                                                {...storeCartItem.form(
+                                                    product.slug,
+                                                )}
+                                                disableWhileProcessing
+                                            >
+                                                {({ processing, errors }) => (
+                                                    <>
+                                                        <input
+                                                            type="hidden"
+                                                            name="quantity"
+                                                            value="1"
+                                                            readOnly
+                                                        />
+                                                        <Button
+                                                            type="submit"
+                                                            disabled={
+                                                                isOutOfStock ||
+                                                                processing
+                                                            }
+                                                            variant="outline"
+                                                            size="icon"
+                                                            className="size-11 rounded-full border-slate-200 bg-white text-blue-700 hover:bg-blue-50"
+                                                            aria-label="Tambahkan ke keranjang"
+                                                        >
+                                                            {processing ? (
+                                                                <Spinner />
+                                                            ) : (
+                                                                <ShoppingCart className="size-5" />
+                                                            )}
+                                                        </Button>
+                                                        <InputError
+                                                            message={
+                                                                errors.quantity
+                                                            }
+                                                        />
+                                                    </>
+                                                )}
+                                            </Form>
+                                        </div>
+                                    </div>
+                                ) : auth.user ? (
+                                    <Button
+                                        type="button"
+                                        disabled
+                                        className="h-11 w-full rounded-full bg-[#0080FF] hover:bg-[#006FE0]"
+                                    >
+                                        <ShoppingCart className="size-4" />
+                                        Khusus buyer
+                                    </Button>
                                 ) : isOutOfStock ? (
                                     <Button
                                         type="button"
                                         disabled
-                                        className="h-11 w-full rounded-[8px] bg-[#0080FF] hover:bg-[#006FE0]"
+                                        className="h-11 w-full rounded-full bg-[#0080FF] hover:bg-[#006FE0]"
                                     >
                                         <ShoppingCart className="size-4" />
                                         Stok habis
@@ -214,7 +257,7 @@ export default function CatalogShow({ product }: CatalogShowProps) {
                                 ) : (
                                     <Button
                                         asChild
-                                        className="h-11 w-full rounded-[8px] bg-[#0080FF] hover:bg-[#006FE0]"
+                                        className="h-11 w-full rounded-full bg-[#0080FF] hover:bg-[#006FE0]"
                                     >
                                         <Link href={login()}>
                                             <ShoppingCart className="size-4" />

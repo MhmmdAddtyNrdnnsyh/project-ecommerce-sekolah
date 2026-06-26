@@ -47,6 +47,28 @@ test('authenticated user can add approved product to cart', function () {
         );
 });
 
+test('buyer header shares real cart item count for badge', function () {
+    $user = User::factory()->create(['role' => UserRole::Buyer]);
+
+    CartItem::query()->create([
+        'user_id' => $user->id,
+        'product_id' => Product::factory()->approved()->create()->id,
+        'quantity' => 2,
+    ]);
+    CartItem::query()->create([
+        'user_id' => $user->id,
+        'product_id' => Product::factory()->approved()->create()->id,
+        'quantity' => 3,
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('cart.index'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('buyerHeader.cartItemsCount', 2),
+        );
+});
+
 test('adding the same product increases cart quantity without exceeding stock', function () {
     $user = User::factory()->create(['role' => UserRole::Buyer]);
     $product = Product::factory()
@@ -148,6 +170,28 @@ test('cart item quantity cannot exceed product stock', function () {
     ]);
 });
 
+test('approved out of stock products cannot be added to cart', function () {
+    $user = User::factory()->create(['role' => UserRole::Buyer]);
+    $product = Product::factory()
+        ->approved()
+        ->create([
+            'stock' => 0,
+        ]);
+
+    $this->actingAs($user);
+
+    $this
+        ->post(route('cart.items.store', ['product' => $product->slug]), [
+            'quantity' => 1,
+        ])
+        ->assertSessionHasErrors('quantity');
+
+    $this->assertDatabaseMissing('cart_items', [
+        'user_id' => $user->id,
+        'product_id' => $product->id,
+    ]);
+});
+
 test('authenticated user can remove cart item', function () {
     $user = User::factory()->create(['role' => UserRole::Buyer]);
     $cartItem = CartItem::query()->create([
@@ -167,6 +211,32 @@ test('authenticated user can remove cart item', function () {
     ]);
 });
 
+test('buyer cannot update or delete another buyers cart item', function () {
+    $user = User::factory()->create(['role' => UserRole::Buyer]);
+    $otherUser = User::factory()->create(['role' => UserRole::Buyer]);
+    $cartItem = CartItem::query()->create([
+        'user_id' => $otherUser->id,
+        'product_id' => Product::factory()->approved()->create(['stock' => 5])->id,
+        'quantity' => 1,
+    ]);
+
+    $this->actingAs($user);
+
+    $this
+        ->put(route('cart.items.update', $cartItem), [
+            'quantity' => 2,
+        ])
+        ->assertNotFound();
+
+    $this->delete(route('cart.items.destroy', $cartItem))->assertNotFound();
+
+    $this->assertDatabaseHas('cart_items', [
+        'id' => $cartItem->id,
+        'user_id' => $otherUser->id,
+        'quantity' => 1,
+    ]);
+});
+
 test('guest users are redirected from cart endpoints', function () {
     $product = Product::factory()
         ->approved()
@@ -181,6 +251,31 @@ test('guest users are redirected from cart endpoints', function () {
         ])
         ->assertRedirect(route('login'));
 });
+
+test('non buyer users cannot access cart endpoints', function (UserRole $role) {
+    $user = User::factory()->create(['role' => $role]);
+    $product = Product::factory()->approved()->create(['stock' => 5]);
+    $cartItem = CartItem::query()->create([
+        'user_id' => $user->id,
+        'product_id' => $product->id,
+        'quantity' => 1,
+    ]);
+
+    $this->actingAs($user);
+
+    $this->get(route('cart.index'))->assertForbidden();
+    $this->post(route('cart.items.store', ['product' => $product->slug]), [
+        'quantity' => 1,
+    ])->assertForbidden();
+    $this->put(route('cart.items.update', $cartItem), [
+        'quantity' => 2,
+    ])->assertForbidden();
+    $this->delete(route('cart.items.destroy', $cartItem))->assertForbidden();
+})->with([
+    UserRole::Admin,
+    UserRole::Seller,
+    UserRole::PicketOfficer,
+]);
 
 test('non approved products cannot be added to cart', function (ProductStatus $status) {
     $user = User::factory()->create(['role' => UserRole::Buyer]);

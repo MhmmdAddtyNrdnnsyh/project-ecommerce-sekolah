@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Enums\UserRole;
 use App\Models\Position;
+use App\Models\UpJurusan;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 
@@ -21,6 +22,7 @@ class TestingUserSeeder extends Seeder
         $teacherPosition = Position::query()
             ->where('code', Position::TEACHER)
             ->firstOrFail();
+        $upJurusanId = UpJurusan::query()->value('id');
 
         foreach ($this->users() as $user) {
             User::query()->updateOrCreate(
@@ -28,10 +30,10 @@ class TestingUserSeeder extends Seeder
                 [
                     'name' => $user['name'],
                     'role' => $user['role'],
-                    'email_verified_at' => now(),
                     'password' => 'password',
                     'position_id' => $teacherPosition->id,
                     'class_id' => null,
+                    'up_jurusan_id' => $user['role'] === UserRole::PicketOfficer ? $upJurusanId : null,
                 ],
             );
         }
@@ -52,6 +54,16 @@ class TestingUserSeeder extends Seeder
                 'name' => 'Seller EduCart',
                 'email' => 'seller@educart.test',
                 'role' => UserRole::Seller,
+            ],
+            [
+                'name' => 'Admin Jurusan EduCart',
+                'email' => 'admin.jurusan@educart.test',
+                'role' => UserRole::AdminJurusan,
+            ],
+            [
+                'name' => 'Picket Officer EduCart',
+                'email' => 'picket@educart.test',
+                'role' => UserRole::PicketOfficer,
             ],
         ];
     }

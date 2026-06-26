@@ -17,6 +17,7 @@ class AdminProductModerationController extends Controller
             'products' => Product::query()
                 ->with(['category:id,name,slug', 'seller:id,name,email'])
                 ->where('status', ProductStatus::Pending)
+                ->whereNotNull('seller_id')
                 ->oldest()
                 ->get(['id', 'seller_id', 'category_id', 'name', 'slug', 'description', 'price', 'stock', 'status', 'created_at'])
                 ->map(fn (Product $product) => [

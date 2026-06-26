@@ -12,7 +12,32 @@ declare module '@inertiajs/core' {
         sharedPageProps: {
             name: string;
             auth: Auth;
+            adminHeader: {
+                notifications: {
+                    type: 'product';
+                    title: string;
+                    description: string;
+                    href: string;
+                }[];
+                supportEmail: string | null;
+            } | null;
+            buyerHeader: {
+                cartItemsCount: number;
+            } | null;
+            sellerHeader: {
+                notifications: {
+                    type: 'order' | 'stock';
+                    title: string;
+                    description: string;
+                    href: string;
+                }[];
+                supportEmail: string | null;
+            } | null;
             sidebarOpen: boolean;
+            flash: {
+                success?: string;
+                error?: string;
+            };
             [key: string]: unknown;
         };
     }

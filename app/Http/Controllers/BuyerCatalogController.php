@@ -25,7 +25,9 @@ class BuyerCatalogController extends Controller
             'categories' => Category::query()
                 ->whereHas('products', fn ($query) => $query
                     ->where('status', ProductStatus::Approved)
-                    ->where('stock', '>', 0))
+                    ->where(fn ($query) => $query
+                        ->where('stock', '>', 0)
+                        ->orWhereHas('upJurusanConsignments', fn ($query) => $query->whereColumn('received_quantity', '>', 'sold_quantity'))))
                 ->orderBy('name')
                 ->get(['id', 'name', 'slug'])
                 ->map(fn (Category $category) => [
@@ -35,9 +37,12 @@ class BuyerCatalogController extends Controller
                 ])
                 ->all(),
             'products' => Product::query()
-                ->with(['category:id,name,slug', 'seller:id,name'])
+                ->with(['category:id,name,slug', 'seller:id,name', 'upJurusan:id,name'])
+                ->with('upJurusanConsignments:id,product_id,received_quantity,sold_quantity')
                 ->where('status', ProductStatus::Approved)
-                ->where('stock', '>', 0)
+                ->where(fn ($query) => $query
+                    ->where('stock', '>', 0)
+                    ->orWhereHas('upJurusanConsignments', fn ($query) => $query->whereColumn('received_quantity', '>', 'sold_quantity')))
                 ->when($search !== '', fn ($query) => $query->where(function ($query) use ($search) {
                     $query
                         ->where('name', 'like', "%{$search}%")
@@ -48,19 +53,20 @@ class BuyerCatalogController extends Controller
                     fn ($query) => $query->where('slug', $category),
                 ))
                 ->latest()
-                ->get(['id', 'seller_id', 'category_id', 'name', 'slug', 'description', 'price', 'stock', 'image'])
+                ->get(['id', 'seller_id', 'up_jurusan_id', 'category_id', 'name', 'slug', 'description', 'price', 'stock', 'sales_method', 'image'])
                 ->map(fn (Product $product) => [
                     'id' => $product->id,
                     'name' => $product->name,
                     'slug' => $product->slug,
                     'description' => $product->description,
                     'price' => $product->price,
-                    'stock' => $product->stock,
+                    'stock' => $product->availableStock(),
                     'image' => $product->image,
-                    'seller' => [
+                    'seller' => $product->seller ? [
                         'id' => $product->seller->id,
                         'name' => $product->seller->name,
-                    ],
+                    ] : null,
+                    'owner' => $this->ownerPayload($product),
                     'category' => [
                         'id' => $product->category->id,
                         'name' => $product->category->name,
@@ -70,5 +76,25 @@ class BuyerCatalogController extends Controller
                 ->values()
                 ->all(),
         ]);
+    }
+
+    /**
+     * @return array{id: int, name: string, type: string}
+     */
+    private function ownerPayload(Product $product): array
+    {
+        if ($product->upJurusan) {
+            return [
+                'id' => $product->upJurusan->id,
+                'name' => $product->upJurusan->name,
+                'type' => 'up_jurusan',
+            ];
+        }
+
+        return [
+            'id' => $product->seller->id,
+            'name' => $product->seller->name,
+            'type' => 'seller',
+        ];
     }
 }

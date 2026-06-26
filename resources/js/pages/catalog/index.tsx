@@ -1,6 +1,5 @@
-import { Form, Head, Link } from '@inertiajs/react';
-import { Package, RotateCcw, Search, Store, Tags } from 'lucide-react';
-import { useState } from 'react';
+import { Head, Link, usePage } from '@inertiajs/react';
+import { Package, Search, Store, Tags } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -10,16 +9,9 @@ import {
     CardHeader,
     CardTitle,
 } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
-import { index as catalogIndex } from '@/routes/catalog';
+import { home } from '@/routes';
+import { show as catalogShow } from '@/routes/catalog';
+import type { Auth } from '@/types';
 
 type CatalogCategory = {
     id: number;
@@ -38,6 +30,11 @@ type CatalogProduct = {
     seller: {
         id: number;
         name: string;
+    } | null;
+    owner: {
+        id: number;
+        name: string;
+        type: 'seller' | 'up_jurusan';
     };
     category: {
         id: number;
@@ -53,6 +50,10 @@ type CatalogIndexProps = {
         category: string;
     };
     products: CatalogProduct[];
+};
+
+type PageProps = {
+    auth: Auth;
 };
 
 const formatRupiah = (value: number) =>
@@ -77,142 +78,119 @@ export default function CatalogIndex({
     filters,
     products,
 }: CatalogIndexProps) {
-    const [category, setCategory] = useState(filters.category || 'all');
-    const hasActiveFilters = filters.search !== '' || filters.category !== '';
+    const { auth } = usePage<PageProps>().props;
+    const greetingName =
+        auth.user?.role === 'buyer'
+            ? auth.user.name.split(' ')[0]
+            : 'selamat datang';
 
     return (
         <>
-            <Head title="Katalog Produk" />
+            <Head title="EduCart" />
             <main className="min-h-screen bg-slate-50">
-                <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-5 sm:px-6 lg:px-8">
-                    <header className="flex flex-col gap-4 border-b border-slate-200 pb-5 sm:flex-row sm:items-center sm:justify-between">
-                        <Link
-                            href="/"
-                            className="flex w-fit items-center gap-3 text-slate-950"
-                        >
-                            <span className="flex size-10 items-center justify-center rounded-[8px] bg-[#0080FF] text-white">
-                                <Package className="size-5" />
-                            </span>
-                            <span>
-                                <span className="block text-lg leading-tight font-semibold">
-                                    EduCart
-                                </span>
-                                <span className="block text-xs font-medium text-slate-500">
-                                    Katalog produk
-                                </span>
-                            </span>
-                        </Link>
+                <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
+                    <section className="pt-2 pb-1">
+                        <Badge className="mb-4 rounded-full bg-blue-50 px-3 py-1 text-blue-700">
+                            <Tags className="size-3.5" />
+                            Produk approved
+                        </Badge>
+                        <h1 className="max-w-3xl text-3xl leading-tight font-semibold tracking-normal text-slate-950 sm:text-4xl">
+                            Halo, {greetingName}. Mau cari apa hari ini?
+                        </h1>
+                        <p className="mt-3 max-w-2xl text-base leading-7 text-slate-600">
+                            Pilih kategori di bawah, atau gunakan search di
+                            navbar untuk menemukan produk sekolah yang sudah
+                            disetujui admin.
+                        </p>
+                    </section>
 
-                        <div className="flex flex-wrap items-center gap-2">
-                            <Badge className="rounded-[6px] bg-blue-50 text-blue-700">
-                                {products.length} produk tersedia
-                            </Badge>
-                            <Badge className="rounded-[6px] bg-white text-slate-600 ring-1 ring-slate-200">
-                                Stok ready
-                            </Badge>
+                    <section className="space-y-3">
+                        <div className="flex items-center justify-between gap-3">
+                            <div>
+                                <h2 className="text-sm font-semibold text-slate-800">
+                                    Kategori
+                                </h2>
+                                <p className="mt-1 text-xs text-slate-500">
+                                    Filter produk tanpa keluar dari Home.
+                                </p>
+                            </div>
+                            {filters.search && (
+                                <Badge className="rounded-full bg-white text-slate-600 ring-1 ring-slate-200">
+                                    <Search className="size-3.5" />
+                                    {filters.search}
+                                </Badge>
+                            )}
                         </div>
-                    </header>
+                        <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0">
+                            <Button
+                                asChild
+                                variant={
+                                    filters.category === ''
+                                        ? 'default'
+                                        : 'outline'
+                                }
+                                className={
+                                    filters.category === ''
+                                        ? 'h-10 shrink-0 rounded-full bg-[#0080FF] px-4 hover:bg-[#006FE0]'
+                                        : 'h-10 shrink-0 rounded-full border-slate-200 bg-white px-4 text-slate-700 hover:bg-slate-50'
+                                }
+                            >
+                                <Link
+                                    href={home({
+                                        query: filters.search
+                                            ? { search: filters.search }
+                                            : {},
+                                    })}
+                                >
+                                    All
+                                </Link>
+                            </Button>
+                            {categories.map((category) => (
+                                <Button
+                                    key={category.id}
+                                    asChild
+                                    variant={
+                                        filters.category === category.slug
+                                            ? 'default'
+                                            : 'outline'
+                                    }
+                                    className={
+                                        filters.category === category.slug
+                                            ? 'h-10 shrink-0 rounded-full bg-[#0080FF] px-4 hover:bg-[#006FE0]'
+                                            : 'h-10 shrink-0 rounded-full border-slate-200 bg-white px-4 text-slate-700 hover:bg-slate-50'
+                                    }
+                                >
+                                    <Link
+                                        href={home({
+                                            query: {
+                                                ...(filters.search
+                                                    ? {
+                                                          search: filters.search,
+                                                      }
+                                                    : {}),
+                                                category: category.slug,
+                                            },
+                                        })}
+                                    >
+                                        {category.name}
+                                    </Link>
+                                </Button>
+                            ))}
+                        </div>
+                    </section>
 
-                    <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_420px] lg:items-end">
+                    <section className="flex items-end justify-between gap-4">
                         <div className="max-w-3xl">
-                            <Badge className="mb-4 rounded-[6px] bg-blue-50 text-blue-700">
-                                <Tags className="size-3.5" />
-                                Produk approved
-                            </Badge>
-                            <h1 className="text-3xl font-semibold tracking-normal text-slate-950 sm:text-4xl">
-                                Temukan perlengkapan belajar yang siap dibeli.
-                            </h1>
-                            <p className="mt-3 max-w-2xl text-base leading-7 text-slate-600">
-                                Semua produk di katalog ini sudah disetujui
-                                admin dan memiliki stok tersedia.
+                            <h2 className="text-xl font-semibold text-slate-950">
+                                Produk pilihan
+                            </h2>
+                            <p className="mt-1 text-sm text-slate-500">
+                                Semua item yang tampil sudah siap dilihat buyer.
                             </p>
                         </div>
-
-                        <Form
-                            {...catalogIndex.form()}
-                            options={{
-                                preserveScroll: true,
-                            }}
-                            className="rounded-[8px] border border-slate-200 bg-white p-4 shadow-sm"
-                        >
-                            <div className="grid gap-4">
-                                <div className="grid gap-2">
-                                    <Label
-                                        htmlFor="search"
-                                        className="text-slate-700"
-                                    >
-                                        Cari produk
-                                    </Label>
-                                    <div className="relative">
-                                        <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" />
-                                        <Input
-                                            id="search"
-                                            name="search"
-                                            defaultValue={filters.search}
-                                            placeholder="Nama atau deskripsi"
-                                            className="h-11 rounded-[8px] border-slate-200 bg-white pl-9"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="grid gap-2">
-                                    <Label
-                                        htmlFor="category"
-                                        className="text-slate-700"
-                                    >
-                                        Kategori
-                                    </Label>
-                                    <Select
-                                        name="category"
-                                        value={category}
-                                        onValueChange={setCategory}
-                                    >
-                                        <SelectTrigger
-                                            id="category"
-                                            className="h-11 w-full rounded-[8px] border-slate-200 bg-white"
-                                        >
-                                            <SelectValue placeholder="Semua kategori" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="all">
-                                                Semua kategori
-                                            </SelectItem>
-                                            {categories.map((category) => (
-                                                <SelectItem
-                                                    key={category.id}
-                                                    value={category.slug}
-                                                >
-                                                    {category.name}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-
-                                <div className="flex flex-wrap items-center gap-2">
-                                    <Button
-                                        type="submit"
-                                        className="h-10 rounded-[8px] bg-[#0080FF] px-4 hover:bg-[#006FE0]"
-                                    >
-                                        <Search className="size-4" />
-                                        Terapkan
-                                    </Button>
-                                    {hasActiveFilters && (
-                                        <Button
-                                            asChild
-                                            variant="outline"
-                                            type="button"
-                                            className="h-10 rounded-[8px] border-slate-200"
-                                        >
-                                            <Link href={catalogIndex()}>
-                                                <RotateCcw className="size-4" />
-                                                Reset
-                                            </Link>
-                                        </Button>
-                                    )}
-                                </div>
-                            </div>
-                        </Form>
+                        <Badge className="w-fit shrink-0 rounded-full bg-white text-slate-600 ring-1 ring-slate-200">
+                            {products.length} produk tersedia
+                        </Badge>
                     </section>
 
                     {products.length === 0 ? (
@@ -229,18 +207,18 @@ export default function CatalogIndex({
                             </p>
                         </section>
                     ) : (
-                        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                        <section className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
                             {products.map((product) => {
                                 const src = imageSource(product.image);
 
                                 return (
                                     <Link
                                         key={product.id}
-                                        href={`/catalog/${product.slug}`}
-                                        className="group block h-full"
+                                        href={catalogShow(product.slug)}
+                                        className="group block h-full rounded-[8px] focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:outline-none"
                                     >
-                                        <Card className="h-full overflow-hidden rounded-[8px] border border-slate-200 bg-white py-0 shadow-sm transition group-hover:-translate-y-0.5 group-hover:shadow-md">
-                                            <div className="aspect-[4/3] bg-slate-100">
+                                        <Card className="h-full overflow-hidden rounded-[8px] border border-slate-200 bg-white py-0 shadow-sm transition duration-200 group-hover:-translate-y-0.5 group-hover:border-blue-200 group-hover:shadow-md">
+                                            <div className="aspect-square bg-slate-100">
                                                 {src ? (
                                                     <img
                                                         src={src}
@@ -253,33 +231,40 @@ export default function CatalogIndex({
                                                     </div>
                                                 )}
                                             </div>
-                                            <CardHeader className="space-y-2 p-4 pb-2">
+                                            <CardHeader className="space-y-2 p-3 pb-2 sm:p-4 sm:pb-2">
                                                 <div className="flex flex-wrap gap-2">
-                                                    <Badge className="rounded-[6px] bg-slate-100 text-slate-700">
+                                                    <Badge className="rounded-full bg-slate-100 text-slate-700">
                                                         <Tags className="size-3.5" />
                                                         {product.category.name}
                                                     </Badge>
-                                                    <Badge className="rounded-[6px] bg-emerald-50 text-emerald-700">
+                                                    <Badge className="rounded-full bg-emerald-50 text-emerald-700">
                                                         Stok {product.stock}
                                                     </Badge>
                                                 </div>
-                                                <CardTitle className="line-clamp-2 text-base leading-6 font-semibold text-slate-950">
+                                                <CardTitle className="line-clamp-2 text-sm leading-5 font-semibold text-slate-950 sm:text-base sm:leading-6">
                                                     {product.name}
                                                 </CardTitle>
-                                                <CardDescription className="line-clamp-2 text-sm leading-6 text-slate-500">
+                                                <CardDescription className="line-clamp-2 text-xs leading-5 text-slate-500 sm:text-sm sm:leading-6">
                                                     {product.description}
                                                 </CardDescription>
                                             </CardHeader>
-                                            <CardContent className="space-y-3 p-4 pt-0">
-                                                <p className="text-xl font-semibold text-slate-950">
+                                            <CardContent className="space-y-3 p-3 pt-0 sm:p-4 sm:pt-0">
+                                                <p className="text-base font-semibold text-slate-950 sm:text-xl">
                                                     {formatRupiah(
                                                         product.price,
                                                     )}
                                                 </p>
-                                                <p className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
-                                                    <Store className="size-3.5" />
-                                                    {product.seller.name}
-                                                </p>
+                                                <div className="flex items-center justify-between gap-3 border-t border-slate-100 pt-3">
+                                                    <p className="flex min-w-0 items-center gap-1.5 text-xs font-medium text-slate-500">
+                                                        <Store className="size-3.5 shrink-0" />
+                                                        <span className="truncate">
+                                                            {product.owner.name}
+                                                        </span>
+                                                    </p>
+                                                    <span className="text-xs font-semibold text-blue-700">
+                                                        Detail
+                                                    </span>
+                                                </div>
                                             </CardContent>
                                         </Card>
                                     </Link>
