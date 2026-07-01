@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\ProductFulfillmentType;
 use App\Enums\ProductStatus;
 use App\Enums\UpJurusanConsignmentStatus;
 use App\Enums\UserRole;
@@ -82,6 +83,74 @@ test('seller can save a product as draft', function () {
     ]);
 });
 
+test('seller can create a pre-order product without ready stock', function () {
+    $seller = User::factory()->create(['role' => UserRole::Seller]);
+    $category = Category::factory()->create();
+    $deadline = now()->addDays(7)->toDateString();
+
+    $this->actingAs($seller)
+        ->from(route('seller.products.create'))
+        ->post(route('seller.products.store'), [
+            'name' => 'Kaos Kelas PO',
+            'category_id' => $category->id,
+            'description' => 'Kaos kelas dibuat setelah pesanan terkumpul.',
+            'price' => 50000,
+            'fulfillment_type' => ProductFulfillmentType::PreOrder->value,
+            'pre_order_estimate_days' => 14,
+            'pre_order_deadline' => $deadline,
+            'pre_order_min_quantity' => 12,
+            'pre_order_note' => 'Produksi dimulai setiap Jumat.',
+        ])
+        ->assertRedirect(route('seller.products.index'));
+
+    $this->assertDatabaseHas('products', [
+        'seller_id' => $seller->id,
+        'name' => 'Kaos Kelas PO',
+        'stock' => 0,
+        'fulfillment_type' => ProductFulfillmentType::PreOrder->value,
+        'pre_order_estimate_days' => 14,
+        'pre_order_deadline' => "{$deadline} 00:00:00",
+        'pre_order_min_quantity' => 12,
+        'pre_order_note' => 'Produksi dimulai setiap Jumat.',
+        'status' => ProductStatus::Pending->value,
+    ]);
+});
+
+test('seller can create an up jurusan pre-order product without requested quantity', function () {
+    $seller = User::factory()->create(['role' => UserRole::Seller]);
+    $category = Category::factory()->create();
+    $upJurusan = UpJurusan::factory()->create();
+
+    $this->actingAs($seller)
+        ->from(route('seller.products.create'))
+        ->post(route('seller.products.store'), [
+            'name' => 'Risol PO UP',
+            'category_id' => $category->id,
+            'description' => 'Risol diproduksi setelah pesanan terkumpul.',
+            'price' => 3000,
+            'sales_method' => 'up_jurusan',
+            'fulfillment_type' => ProductFulfillmentType::PreOrder->value,
+            'pre_order_estimate_days' => 3,
+            'up_jurusan_id' => $upJurusan->id,
+        ])
+        ->assertRedirect(route('seller.products.index'));
+
+    $this->assertDatabaseHas('products', [
+        'seller_id' => $seller->id,
+        'category_id' => $category->id,
+        'name' => 'Risol PO UP',
+        'stock' => 0,
+        'sales_method' => 'up_jurusan',
+        'fulfillment_type' => ProductFulfillmentType::PreOrder->value,
+        'pre_order_estimate_days' => 3,
+        'status' => ProductStatus::Pending->value,
+    ]);
+    $this->assertDatabaseMissing('up_jurusan_consignments', [
+        'seller_id' => $seller->id,
+        'up_jurusan_id' => $upJurusan->id,
+    ]);
+});
+
 test('seller can create a consigned product from product form', function () {
     $seller = User::factory()->create(['role' => UserRole::Seller]);
     $category = Category::factory()->create();
@@ -117,7 +186,7 @@ test('seller can create a consigned product from product form', function () {
     ]);
 });
 
-test('draft consigned product does not create an up jurusan request yet', function () {
+test('consigned product ignores seller draft status and creates an up jurusan request', function () {
     $seller = User::factory()->create(['role' => UserRole::Seller]);
     $category = Category::factory()->create();
     $upJurusan = UpJurusan::factory()->create();
@@ -140,12 +209,13 @@ test('draft consigned product does not create an up jurusan request yet', functi
         'seller_id' => $seller->id,
         'name' => 'Risol Draft',
         'sales_method' => 'up_jurusan',
-        'status' => ProductStatus::Draft->value,
+        'status' => ProductStatus::Pending->value,
     ]);
-    $this->assertDatabaseMissing('up_jurusan_consignments', [
+    $this->assertDatabaseHas('up_jurusan_consignments', [
         'seller_id' => $seller->id,
         'up_jurusan_id' => $upJurusan->id,
         'requested_quantity' => 20,
+        'status' => UpJurusanConsignmentStatus::PendingApproval->value,
     ]);
 });
 

@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 
 type Props = {
     consignment: {
@@ -121,9 +122,7 @@ export default function AdminJurusanConsignmentShow({ consignment }: Props) {
                             />
                             <Info
                                 label="Saldo Seller"
-                                value={formatRupiah(
-                                    consignment.unpaid_amount,
-                                )}
+                                value={formatRupiah(consignment.unpaid_amount)}
                             />
                             <Info
                                 label="Tanggal"
@@ -152,32 +151,11 @@ export default function AdminJurusanConsignmentShow({ consignment }: Props) {
                         )}
                         {(consignment.status.code === 'approved' ||
                             consignment.status.code === 'received') && (
-                            <Form
-                                action={`/admin-jurusan/consignments/${consignment.id}/receive`}
-                                method="post"
-                                className="mt-5 grid gap-2 border-t border-slate-100 pt-4"
-                            >
-                                <Input
-                                    name="quantity"
-                                    type="number"
-                                    min="1"
-                                    max={
-                                        consignment.requested_quantity -
-                                        consignment.received_quantity
-                                    }
-                                    placeholder="Jumlah barang diterima"
-                                    required
-                                />
-                                <Input
-                                    name="commission_rate"
-                                    type="number"
-                                    min="0"
-                                    max="100"
-                                    defaultValue={consignment.commission_rate}
-                                    placeholder="Komisi UP (%)"
-                                />
-                                <Button type="submit">Catat diterima</Button>
-                            </Form>
+                            <div className="mt-5 rounded-[8px] border border-blue-100 bg-blue-50 p-3 text-sm text-blue-700">
+                                Barang fisik diterima oleh picket officer lewat
+                                halaman Picket Receiving. Admin jurusan hanya
+                                menyetujui request dan memantau progres stok.
+                            </div>
                         )}
                         {consignment.unpaid_amount > 0 && (
                             <Form
@@ -230,21 +208,28 @@ function RejectConsignmentDialog({
                         seller ikut menjadi rejected.
                     </AlertDialogDescription>
                 </AlertDialogHeader>
-                <AlertDialogFooter>
-                    <AlertDialogCancel asChild>
-                        <Button type="button" variant="outline">
-                            Batal
-                        </Button>
-                    </AlertDialogCancel>
-                    <Form
-                        action={`/admin-jurusan/consignments/${consignment.id}/reject`}
-                        method="post"
-                    >
+                <Form
+                    action={`/admin-jurusan/consignments/${consignment.id}/reject`}
+                    method="post"
+                    className="space-y-4"
+                >
+                    <Textarea
+                        name="rejection_reason"
+                        required
+                        maxLength={1000}
+                        placeholder="Tulis alasan penolakan untuk seller"
+                    />
+                    <AlertDialogFooter>
+                        <AlertDialogCancel asChild>
+                            <Button type="button" variant="outline">
+                                Batal
+                            </Button>
+                        </AlertDialogCancel>
                         <Button type="submit" variant="destructive">
                             Reject
                         </Button>
-                    </Form>
-                </AlertDialogFooter>
+                    </AlertDialogFooter>
+                </Form>
             </AlertDialogContent>
         </AlertDialog>
     );

@@ -1,5 +1,5 @@
-import { Head, router } from '@inertiajs/react';
-import { Search, Users } from 'lucide-react';
+import { Head, Link, router } from '@inertiajs/react';
+import { Search, UserPlus, Users } from 'lucide-react';
 import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -65,7 +65,11 @@ const formatDate = (value: string | null) =>
           )
         : '-';
 
-export default function AdminUsersIndex({ users, roles, filters }: Props) {
+export default function AdminUsersIndex({
+    users,
+    roles,
+    filters,
+}: Props) {
     const [q, setQ] = useState(filters.q);
     const [role, setRole] = useState(filters.role || '');
 
@@ -89,15 +93,29 @@ export default function AdminUsersIndex({ users, roles, filters }: Props) {
             <main className="min-h-[calc(100svh-4rem)] bg-slate-50 p-4 sm:p-6">
                 <div className="space-y-6">
                     <section>
-                        <Badge className="mb-2 rounded-[6px] bg-blue-50 text-blue-700">
-                            <Users className="size-3.5" /> {users.total} user
-                        </Badge>
-                        <h1 className="text-2xl font-semibold text-slate-950">
-                            Users
-                        </h1>
-                        <p className="mt-1 text-sm text-slate-500">
-                            Pantau akun, role, dan aktivitas dasar.
-                        </p>
+                        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                            <div>
+                                <Badge className="mb-2 rounded-[6px] bg-blue-50 text-blue-700">
+                                    <Users className="size-3.5" />{' '}
+                                    {users.total} user
+                                </Badge>
+                                <h1 className="text-2xl font-semibold text-slate-950">
+                                    Users
+                                </h1>
+                                <p className="mt-1 text-sm text-slate-500">
+                                    Pantau akun, role, dan aktivitas dasar.
+                                </p>
+                            </div>
+                            <Button
+                                asChild
+                                className="w-full rounded-[8px] sm:w-auto"
+                            >
+                                <Link href="/admin/users/create-admin-jurusan">
+                                    <UserPlus className="size-4" />
+                                    Buat Admin Jurusan
+                                </Link>
+                            </Button>
+                        </div>
                     </section>
 
                     <Card className="gap-0 rounded-[8px] border-slate-100 py-0 shadow-sm">
@@ -125,10 +143,7 @@ export default function AdminUsersIndex({ users, roles, filters }: Props) {
                                         className="rounded-[8px] border-slate-200 bg-white pl-9"
                                     />
                                 </label>
-                                <Select
-                                    value={role}
-                                    onValueChange={setRole}
-                                >
+                                <Select value={role} onValueChange={setRole}>
                                     <SelectTrigger className="w-full rounded-[8px] border-slate-200 bg-white">
                                         <SelectValue placeholder="Pilih role" />
                                     </SelectTrigger>

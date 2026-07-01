@@ -1,5 +1,5 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { Eye, Search, ShoppingCart } from 'lucide-react';
+import { CheckCircle2, Eye, Search, ShoppingCart } from 'lucide-react';
 import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -35,19 +35,41 @@ import {
     updateStatus,
 } from '@/routes/seller/orders';
 
-type OrderStatus = 'pending' | 'packed' | 'sent';
+type OrderStatus =
+    | 'pending'
+    | 'in_production'
+    | 'ready'
+    | 'packed'
+    | 'sent'
+    | 'completed';
+
+type PaymentStatus = 'unpaid' | 'pending_confirmation' | 'paid' | 'rejected';
 
 type SellerOrderItem = {
     id: number;
-    order_id: number;
-    buyer: { id: number; name: string };
+    source: 'online' | 'offline';
+    code?: string;
+    detail_url?: string;
+    order_id: number | string;
+    buyer: { id: number | null; name: string };
     product: { id: number; name: string; slug: string };
     managed_by_up_jurusan: boolean;
+    is_pre_order: boolean;
+    pre_order_estimate_days: number | null;
+    pre_order_deadline: string | null;
+    pre_order_min_quantity: number | null;
+    pre_order_note: string | null;
     product_name: string;
     price: number;
     quantity: number;
     subtotal: number;
     status: { code: OrderStatus; label: string };
+    payment: {
+        status: { code: PaymentStatus; label: string };
+        method: { code: string; label: string };
+        confirmed_at: string | null;
+        rejection_reason: string | null;
+    };
     created_at: string;
 };
 
@@ -67,16 +89,40 @@ type SellerOrdersProps = {
 
 const statusStyles: Record<OrderStatus, string> = {
     pending: 'bg-blue-50 text-blue-700',
+    in_production: 'bg-violet-50 text-violet-700',
+    ready: 'bg-cyan-50 text-cyan-700',
     packed: 'bg-amber-50 text-amber-700',
-    sent: 'bg-emerald-50 text-emerald-700',
+    sent: 'bg-indigo-50 text-indigo-700',
+    completed: 'bg-emerald-50 text-emerald-700',
+};
+
+const paymentStatusStyles: Record<PaymentStatus, string> = {
+    unpaid: 'bg-slate-100 text-slate-700',
+    pending_confirmation: 'bg-amber-50 text-amber-700',
+    paid: 'bg-emerald-50 text-emerald-700',
+    rejected: 'bg-rose-50 text-rose-700',
 };
 
 const nextStatus: Record<
-    Exclude<OrderStatus, 'sent'>,
+    Exclude<OrderStatus, 'sent' | 'completed'>,
     { code: OrderStatus; action: string }
 > = {
     pending: { code: 'packed', action: 'Tandai dikemas' },
+    in_production: { code: 'ready', action: 'Tandai siap' },
+    ready: { code: 'sent', action: 'Tandai dikirim' },
     packed: { code: 'sent', action: 'Tandai dikirim' },
+};
+
+const nextActionFor = (item: SellerOrderItem) => {
+    if (item.status.code === 'sent' || item.status.code === 'completed') {
+        return null;
+    }
+
+    if (item.is_pre_order && item.status.code === 'pending') {
+        return { code: 'in_production' as const, action: 'Mulai produksi' };
+    }
+
+    return nextStatus[item.status.code];
 };
 
 const formatRupiah = (value: number) =>
@@ -100,7 +146,9 @@ export default function SellerOrdersIndex({
     const [q, setQ] = useState(filters.q);
     const [status, setStatus] = useState(filters.status || '');
     const [processingId, setProcessingId] = useState<number>();
+    const [paymentProcessingId, setPaymentProcessingId] = useState<number>();
     const [statusError, setStatusError] = useState<string>();
+    const [paymentError, setPaymentError] = useState<string>();
 
     const submitFilters = (event: React.FormEvent) => {
         event.preventDefault();
@@ -117,7 +165,17 @@ export default function SellerOrdersIndex({
     };
 
     const advanceStatus = (item: SellerOrderItem) => {
-        if (item.status.code === 'sent') {
+        if (
+            item.source === 'offline' ||
+            item.status.code === 'sent' ||
+            item.status.code === 'completed'
+        ) {
+            return;
+        }
+
+        const action = nextActionFor(item);
+
+        if (!action) {
             return;
         }
 
@@ -125,12 +183,35 @@ export default function SellerOrdersIndex({
 
         router.put(
             updateStatus(item.id),
-            { status: nextStatus[item.status.code].code },
+            { status: action.code },
             {
                 preserveScroll: true,
                 onStart: () => setProcessingId(item.id),
                 onFinish: () => setProcessingId(undefined),
                 onError: (errors) => setStatusError(errors.status),
+            },
+        );
+    };
+
+    const approvePayment = (item: SellerOrderItem) => {
+        if (
+            item.source !== 'online' ||
+            item.managed_by_up_jurusan ||
+            item.payment.status.code === 'paid'
+        ) {
+            return;
+        }
+
+        setPaymentError(undefined);
+
+        router.post(
+            `/seller/orders/${item.id}/payment/approve`,
+            {},
+            {
+                preserveScroll: true,
+                onStart: () => setPaymentProcessingId(item.id),
+                onFinish: () => setPaymentProcessingId(undefined),
+                onError: (errors) => setPaymentError(errors.payment),
             },
         );
     };
@@ -153,17 +234,23 @@ export default function SellerOrdersIndex({
                         </p>
                     </section>
 
-                    {(flash.success || flash.error || statusError) && (
+                    {(flash.success ||
+                        flash.error ||
+                        statusError ||
+                        paymentError) && (
                         <div
                             role="status"
                             className={cn(
                                 'rounded-[8px] border px-4 py-3 text-sm',
-                                flash.error || statusError
+                                flash.error || statusError || paymentError
                                     ? 'border-rose-200 bg-rose-50 text-rose-700'
                                     : 'border-emerald-200 bg-emerald-50 text-emerald-700',
                             )}
                         >
-                            {statusError || flash.error || flash.success}
+                            {statusError ||
+                                paymentError ||
+                                flash.error ||
+                                flash.success}
                         </div>
                     )}
 
@@ -216,11 +303,20 @@ export default function SellerOrdersIndex({
                                                 <SelectItem value="pending">
                                                     Menunggu
                                                 </SelectItem>
+                                                <SelectItem value="in_production">
+                                                    Diproduksi
+                                                </SelectItem>
+                                                <SelectItem value="ready">
+                                                    Siap
+                                                </SelectItem>
                                                 <SelectItem value="packed">
                                                     Dikemas
                                                 </SelectItem>
                                                 <SelectItem value="sent">
                                                     Dikirim
+                                                </SelectItem>
+                                                <SelectItem value="completed">
+                                                    Selesai
                                                 </SelectItem>
                                             </SelectGroup>
                                         </SelectContent>
@@ -256,6 +352,7 @@ export default function SellerOrdersIndex({
                                                 'Produk',
                                                 'Jumlah',
                                                 'Subtotal',
+                                                'Pembayaran',
                                                 'Status',
                                                 'Waktu',
                                                 'Aksi',
@@ -273,7 +370,7 @@ export default function SellerOrdersIndex({
                                         {orderItems.data.length === 0 && (
                                             <TableRow>
                                                 <TableCell
-                                                    colSpan={8}
+                                                    colSpan={9}
                                                     className="py-10 text-center text-slate-500"
                                                 >
                                                     Tidak ada pesanan yang
@@ -284,13 +381,35 @@ export default function SellerOrdersIndex({
                                         {orderItems.data.map((item) => (
                                             <TableRow key={item.id}>
                                                 <TableCell className="px-5 font-semibold">
-                                                    #{item.order_id}
+                                                    {item.code ??
+                                                        `#${item.order_id}`}
+                                                    {item.source ===
+                                                        'offline' && (
+                                                        <Badge className="mt-1 block w-fit rounded-[6px] bg-emerald-50 text-emerald-700">
+                                                            Offline/POS
+                                                        </Badge>
+                                                    )}
                                                 </TableCell>
                                                 <TableCell className="px-5">
                                                     {item.buyer.name}
                                                 </TableCell>
                                                 <TableCell className="min-w-52 px-5">
-                                                    {item.product_name}
+                                                    <div>
+                                                        <p className="font-medium text-slate-950">
+                                                            {item.product_name}
+                                                        </p>
+                                                        {item.is_pre_order && (
+                                                            <p className="mt-1 text-xs text-blue-700">
+                                                                PO{' '}
+                                                                {
+                                                                    item.pre_order_estimate_days
+                                                                }{' '}
+                                                                hari
+                                                                {item.pre_order_deadline &&
+                                                                    ` • Deadline ${item.pre_order_deadline}`}
+                                                            </p>
+                                                        )}
+                                                    </div>
                                                 </TableCell>
                                                 <TableCell className="px-5">
                                                     {item.quantity}
@@ -299,6 +418,34 @@ export default function SellerOrdersIndex({
                                                     {formatRupiah(
                                                         item.subtotal,
                                                     )}
+                                                </TableCell>
+                                                <TableCell className="px-5">
+                                                    <div className="space-y-1">
+                                                        <Badge
+                                                            className={cn(
+                                                                'rounded-[6px]',
+                                                                paymentStatusStyles[
+                                                                    item
+                                                                        .payment
+                                                                        .status
+                                                                        .code
+                                                                ],
+                                                            )}
+                                                        >
+                                                            {
+                                                                item.payment
+                                                                    .status
+                                                                    .label
+                                                            }
+                                                        </Badge>
+                                                        <p className="text-xs text-slate-500">
+                                                            {
+                                                                item.payment
+                                                                    .method
+                                                                    .label
+                                                            }
+                                                        </p>
+                                                    </div>
                                                 </TableCell>
                                                 <TableCell className="px-5">
                                                     <Badge
@@ -325,48 +472,87 @@ export default function SellerOrdersIndex({
                                                             size="sm"
                                                             className="rounded-[8px]"
                                                         >
-                                                            <Link
-                                                                href={ordersShow(
-                                                                    item.id,
-                                                                )}
-                                                            >
-                                                                <Eye className="size-3.5" />{' '}
-                                                                Detail
-                                                            </Link>
+                                                            {item.source ===
+                                                            'online' ? (
+                                                                <Link
+                                                                    href={ordersShow(
+                                                                        item.id,
+                                                                    )}
+                                                                >
+                                                                    <Eye className="size-3.5" />{' '}
+                                                                    Detail
+                                                                </Link>
+                                                            ) : (
+                                                                <Link
+                                                                    href={
+                                                                        item.detail_url ??
+                                                                        '#'
+                                                                    }
+                                                                >
+                                                                    <Eye className="size-3.5" />{' '}
+                                                                    Detail
+                                                                </Link>
+                                                            )}
                                                         </Button>
+                                                        {item.source ===
+                                                            'online' &&
+                                                            !item.managed_by_up_jurusan &&
+                                                            item.payment.status
+                                                                .code !==
+                                                                'paid' && (
+                                                                <Button
+                                                                    type="button"
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    className="rounded-[8px] border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                                                                    disabled={
+                                                                        paymentProcessingId ===
+                                                                        item.id
+                                                                    }
+                                                                    onClick={() =>
+                                                                        approvePayment(
+                                                                            item,
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    <CheckCircle2 className="size-3.5" />{' '}
+                                                                    {paymentProcessingId ===
+                                                                    item.id
+                                                                        ? 'Memproses...'
+                                                                        : 'Tandai lunas'}
+                                                                </Button>
+                                                        )}
                                                         {item.managed_by_up_jurusan ? (
                                                             <Badge className="rounded-[6px] bg-slate-100 text-slate-700">
                                                                 Dikelola UP
                                                                 Jurusan
                                                             </Badge>
-                                                        ) : (
-                                                            item.status.code !==
-                                                            'sent' && (
-                                                            <Button
-                                                                type="button"
-                                                                size="sm"
-                                                                className="rounded-[8px]"
-                                                                disabled={
-                                                                    processingId ===
+                                                        ) : nextActionFor(
+                                                              item,
+                                                          ) ? (
+                                                                <Button
+                                                                    type="button"
+                                                                    size="sm"
+                                                                    className="rounded-[8px]"
+                                                                    disabled={
+                                                                        processingId ===
+                                                                        item.id
+                                                                    }
+                                                                    onClick={() =>
+                                                                        advanceStatus(
+                                                                            item,
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    {processingId ===
                                                                     item.id
-                                                                }
-                                                                onClick={() =>
-                                                                    advanceStatus(
-                                                                        item,
-                                                                    )
-                                                                }
-                                                            >
-                                                                {processingId ===
-                                                                item.id
-                                                                    ? 'Memproses...'
-                                                                    : nextStatus[
-                                                                          item
-                                                                              .status
-                                                                              .code
-                                                                      ].action}
-                                                            </Button>
-                                                            )
-                                                        )}
+                                                                        ? 'Memproses...'
+                                                                        : nextActionFor(
+                                                                              item,
+                                                                          )
+                                                                              ?.action}
+                                                                </Button>
+                                                        ) : null}
                                                     </div>
                                                 </TableCell>
                                             </TableRow>

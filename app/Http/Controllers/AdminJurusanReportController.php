@@ -2,12 +2,18 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\UpJurusanStockMovement;
+use App\Models\UpJurusan;
+use App\Models\UpJurusanDailyReport;
+use App\Models\UpJurusanDailyReportTransaction;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
+/**
+ * @phpstan-type ReportItem array{id: int, product_name: string, quantity: int, unit_price: int, subtotal: int}
+ * @phpstan-type ReportTransaction array{id: string, code: string, total_quantity: int, total_amount: int, commission_amount: int, seller_amount: int, created_at: string|null, items: array<int, ReportItem>}
+ */
 class AdminJurusanReportController extends Controller
 {
     public function index(Request $request): Response
@@ -18,43 +24,90 @@ class AdminJurusanReportController extends Controller
             'date' => ['nullable', 'date_format:Y-m-d'],
         ]);
         $date = $validated['date'] ?? now()->toDateString();
-
-        $query = UpJurusanStockMovement::query()
-            ->with([
-                'user:id,name',
-                'consignment.product:id,name',
-                'consignment.upJurusan:id,name,admin_jurusan_id',
-            ])
-            ->whereDate('created_at', $date)
-            ->whereHas('consignment.upJurusan', fn ($query) => $query->where('admin_jurusan_id', $adminJurusan->id));
-
-        $movements = $query
-            ->latest()
+        $upJurusanIds = UpJurusan::query()
+            ->where('admin_jurusan_id', $adminJurusan->id)
+            ->pluck('id');
+        $dailyReports = UpJurusanDailyReport::query()
+            ->with(['user:id,name', 'upJurusan:id,name'])
+            ->whereIn('up_jurusan_id', $upJurusanIds)
+            ->whereDate('report_date', $date)
+            ->latest('submitted_at')
             ->get();
 
         return Inertia::render('admin-jurusan/reports/index', [
             'filters' => ['date' => $date],
             'summary' => [
-                'in' => $movements->where('type', 'in')->sum('quantity'),
-                'out' => $movements->where('type', 'out')->sum('quantity'),
-                'gross_amount' => $movements->where('type', 'out')->sum('gross_amount'),
-                'commission_amount' => $movements->where('type', 'out')->sum('commission_amount'),
-                'seller_amount' => $movements->where('type', 'out')->sum('seller_amount'),
+                'reports' => $dailyReports->count(),
+                'pickets' => $dailyReports->pluck('user_id')->unique()->count(),
+                'items_sold' => $dailyReports->sum('total_sold'),
+                'gross_amount' => $dailyReports->sum('total_revenue'),
             ],
-            'movements' => $movements
-                ->map(fn (UpJurusanStockMovement $movement) => [
-                    'id' => $movement->id,
-                    'type' => $movement->type,
-                    'quantity' => $movement->quantity,
-                    'gross_amount' => $movement->gross_amount,
-                    'commission_amount' => $movement->commission_amount,
-                    'seller_amount' => $movement->seller_amount,
-                    'picket_name' => $movement->user->name,
-                    'product_name' => $movement->consignment->product->name,
-                    'up_jurusan_name' => $movement->consignment->upJurusan->name,
-                    'created_at' => $movement->created_at?->toIso8601String(),
+            'reports' => $dailyReports
+                ->map(fn (UpJurusanDailyReport $report) => [
+                    'id' => $report->id,
+                    'picket_name' => $report->user->name,
+                    'up_jurusan_name' => $report->upJurusan->name,
+                    'total_sold' => $report->total_sold,
+                    'total_revenue' => $report->total_revenue,
+                    'submitted_at' => $report->submitted_at->toIso8601String(),
                 ])
                 ->all(),
         ]);
+    }
+
+    public function show(Request $request, UpJurusanDailyReport $report): Response
+    {
+        /** @var User $adminJurusan */
+        $adminJurusan = $request->user();
+        $report->load([
+            'user:id,name',
+            'upJurusan:id,name,admin_jurusan_id',
+            'transactions' => fn ($query) => $query->latest('sold_at'),
+            'transactions.items',
+        ]);
+
+        abort_unless($report->upJurusan->admin_jurusan_id === $adminJurusan->id, 403);
+
+        return Inertia::render('admin-jurusan/reports/show', [
+            'report' => [
+                'id' => $report->id,
+                'date' => $report->report_date->toDateString(),
+                'picket_name' => $report->user->name,
+                'up_jurusan_name' => $report->upJurusan->name,
+                'total_sold' => $report->total_sold,
+                'total_revenue' => $report->total_revenue,
+                'submitted_at' => $report->submitted_at->toIso8601String(),
+            ],
+            'transactions' => $this->reportTransactions($report),
+        ]);
+    }
+
+    /**
+     * @return array<int, ReportTransaction>
+     */
+    private function reportTransactions(UpJurusanDailyReport $report): array
+    {
+        return $report->transactions
+            ->map(fn (UpJurusanDailyReportTransaction $transaction) => [
+                'id' => "report-transaction-{$transaction->id}",
+                'code' => $transaction->code,
+                'total_quantity' => $transaction->total_quantity,
+                'total_amount' => $transaction->total_amount,
+                'commission_amount' => $transaction->commission_amount,
+                'seller_amount' => $transaction->seller_amount,
+                'created_at' => $transaction->sold_at?->toIso8601String(),
+                'items' => $transaction->items
+                    ->map(fn ($item) => [
+                        'id' => $item->id,
+                        'product_name' => $item->product_name,
+                        'quantity' => $item->quantity,
+                        'unit_price' => $item->unit_price,
+                        'subtotal' => $item->subtotal,
+                    ])
+                    ->values()
+                    ->all(),
+            ])
+            ->values()
+            ->all();
     }
 }

@@ -65,11 +65,11 @@ const selectPortalTheme: RegisterTheme = {
 const fieldClassName = 'flex flex-col gap-1';
 const labelClassName = 'text-xs leading-[1.4] font-medium text-[#334155]';
 const iconClassName =
-    'pointer-events-none absolute left-3 top-1/2 z-10 size-5 -translate-y-1/2 text-[#94A3B8]';
+    'pointer-events-none absolute left-3 top-1/2 z-10 size-5 -translate-y-1/2 text-slate-400';
 const inputClassName =
-    'h-11 rounded-lg border-[#E2E8F0] bg-white pl-10 pr-4 text-base text-[#0F172A] shadow-none placeholder:text-[#94A3B8] focus-visible:border-[#0080FF] focus-visible:ring-2 focus-visible:ring-[#BCE0FF] md:text-base';
+    'h-11 rounded-[8px] border-slate-200 bg-white pl-10 pr-4 text-base text-slate-900 shadow-none placeholder:text-slate-400 focus-visible:border-blue-500 focus-visible:ring-2 focus-visible:ring-blue-500/20 md:text-base';
 const selectTriggerClassName =
-    'h-11 w-full rounded-lg border-[#E2E8F0] bg-white pl-10 pr-4 text-base text-[#0F172A] shadow-none data-[placeholder]:text-[#94A3B8] focus-visible:border-[#0080FF] focus-visible:ring-2 focus-visible:ring-[#BCE0FF] data-[size=default]:h-11 md:text-base';
+    'h-11 w-full rounded-[8px] border-slate-200 bg-white pl-10 pr-4 text-base text-slate-900 shadow-none data-[placeholder]:text-slate-400 focus-visible:border-blue-500 focus-visible:ring-2 focus-visible:ring-blue-500/20 data-[size=default]:h-11 md:text-base';
 const errorClassName = 'pt-1 text-xs';
 
 export default function Register({ passwordRules, positions, classes }: Props) {
@@ -420,7 +420,7 @@ export default function Register({ passwordRules, positions, classes }: Props) {
 
                             <Button
                                 type="submit"
-                                className="mt-2 h-11 w-full rounded-lg bg-[#0080FF] text-base font-semibold text-white shadow-sm transition-colors hover:bg-[#006FE0] active:scale-[0.98]"
+                                className="mt-2 h-11 w-full text-base font-semibold shadow-sm transition-colors active:scale-[0.98]"
                                 tabIndex={isStudent ? 8 : 6}
                                 data-test="register-user-button"
                             >
@@ -438,7 +438,7 @@ export default function Register({ passwordRules, positions, classes }: Props) {
                             <Link
                                 href={login()}
                                 tabIndex={isStudent ? 9 : 7}
-                                className="font-semibold text-[#006FE0] transition-colors hover:text-[#0059B8]"
+                                className="font-semibold text-blue-700 transition-colors hover:text-blue-800"
                             >
                                 Masuk di sini
                             </Link>
@@ -452,7 +452,7 @@ export default function Register({ passwordRules, positions, classes }: Props) {
 
 Register.layout = {
     title: 'Bergabung dengan EduCart',
-    description: 'Buat akun untuk mulai jual beli di lingkungan sekolah.',
+    description: 'Buat akun buyer untuk mulai belanja di lingkungan sekolah.',
 };
 
 function matchGrade(value: number) {

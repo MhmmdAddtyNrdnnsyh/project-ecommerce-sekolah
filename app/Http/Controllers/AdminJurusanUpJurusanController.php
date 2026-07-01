@@ -12,6 +12,8 @@ use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -73,6 +75,33 @@ class AdminJurusanUpJurusanController extends Controller
             ->with('success', 'UP Jurusan berhasil dibuat.');
     }
 
+    public function createPicket(Request $request): Response
+    {
+        /** @var User $adminJurusan */
+        $adminJurusan = $request->user();
+
+        $upJurusan = UpJurusan::query()
+            ->with('picketOfficers:id,name,email,up_jurusan_id')
+            ->where('admin_jurusan_id', $adminJurusan->id)
+            ->latest()
+            ->first(['id', 'name', 'description', 'admin_jurusan_id']);
+
+        return Inertia::render('admin-jurusan/picket-officer/create', [
+            'upJurusan' => $upJurusan ? [
+                'id' => $upJurusan->id,
+                'name' => $upJurusan->name,
+                'description' => $upJurusan->description,
+                'picket_officers' => $upJurusan->picketOfficers
+                    ->map(fn (User $picket) => [
+                        'id' => $picket->id,
+                        'name' => $picket->name,
+                        'email' => $picket->email,
+                    ])
+                    ->all(),
+            ] : null,
+        ]);
+    }
+
     public function assignPicket(Request $request, UpJurusan $upJurusan): RedirectResponse
     {
         /** @var User $adminJurusan */
@@ -95,10 +124,47 @@ class AdminJurusanUpJurusanController extends Controller
             ])->redirectTo(route('admin-jurusan.up-jurusan.index'));
         }
 
+        if ($this->hasPicketOfficer($upJurusan) && $picket->up_jurusan_id !== $upJurusan->id) {
+            throw ValidationException::withMessages([
+                'picket_id' => 'UP Jurusan ini sudah memiliki satu picket officer.',
+            ])->redirectTo(route('admin-jurusan.up-jurusan.index'));
+        }
+
         $picket->update(['up_jurusan_id' => $upJurusan->id]);
 
         return to_route('admin-jurusan.up-jurusan.index')
             ->with('success', 'Picket officer berhasil ditugaskan.');
+    }
+
+    public function storePicket(Request $request, UpJurusan $upJurusan): RedirectResponse
+    {
+        /** @var User $adminJurusan */
+        $adminJurusan = $request->user();
+
+        abort_unless($upJurusan->admin_jurusan_id === $adminJurusan->id, 403);
+
+        if ($this->hasPicketOfficer($upJurusan)) {
+            throw ValidationException::withMessages([
+                'email' => 'UP Jurusan ini sudah memiliki satu picket officer.',
+            ])->redirectTo(route('admin-jurusan.picket-officer.create'));
+        }
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'string', 'lowercase', 'email', 'max:255', Rule::unique(User::class)],
+            'password' => ['required', 'confirmed', Password::defaults()],
+        ]);
+
+        User::query()->create([
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'role' => UserRole::PicketOfficer,
+            'password' => $validated['password'],
+            'up_jurusan_id' => $upJurusan->id,
+        ]);
+
+        return to_route('admin-jurusan.picket-officer.create')
+            ->with('success', 'Akun picket officer berhasil dibuat.');
     }
 
     public function storeProduct(Request $request): RedirectResponse
@@ -148,5 +214,13 @@ class AdminJurusanUpJurusanController extends Controller
         }
 
         return $slug;
+    }
+
+    private function hasPicketOfficer(UpJurusan $upJurusan): bool
+    {
+        return User::query()
+            ->where('role', UserRole::PicketOfficer)
+            ->where('up_jurusan_id', $upJurusan->id)
+            ->exists();
     }
 }

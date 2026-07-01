@@ -57,11 +57,10 @@ export default function AdminCategoriesIndex({ categories, filters }: Props) {
 
     const submitFilters = (event: React.FormEvent) => {
         event.preventDefault();
-        router.get(
-            '/admin/categories',
-            q ? { q } : {},
-            { preserveState: true, replace: true },
-        );
+        router.get('/admin/categories', q ? { q } : {}, {
+            preserveState: true,
+            replace: true,
+        });
     };
 
     const createCategory = (event: React.FormEvent) => {
@@ -156,8 +155,8 @@ export default function AdminCategoriesIndex({ categories, filters }: Props) {
                         <CardHeader className="border-b border-slate-100 p-5">
                             <CardTitle>Daftar Kategori</CardTitle>
                             <CardDescription>
-                                {categories.from ?? 0}-{categories.to ?? 0}{' '}
-                                dari {categories.total} kategori
+                                {categories.from ?? 0}-{categories.to ?? 0} dari{' '}
+                                {categories.total} kategori
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="p-0">

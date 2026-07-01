@@ -34,6 +34,11 @@ class CartController extends Controller
                     'slug' => $cartItem->product->slug,
                     'price' => $cartItem->product->price,
                     'stock' => $cartItem->product->availableStock(),
+                    'is_pre_order' => $cartItem->product->isPreOrder(),
+                    'pre_order_estimate_days' => $cartItem->product->pre_order_estimate_days,
+                    'pre_order_deadline' => $cartItem->product->pre_order_deadline?->toDateString(),
+                    'pre_order_min_quantity' => $cartItem->product->pre_order_min_quantity,
+                    'pre_order_note' => $cartItem->product->pre_order_note,
                     'image' => $cartItem->product->image,
                     'seller' => $this->ownerPayload($cartItem->product),
                     'category' => [
@@ -67,7 +72,7 @@ class CartController extends Controller
             ->first();
         $nextQuantity = $quantity + ($cartItem->quantity ?? 0);
 
-        $this->ensureQuantityDoesNotExceedStock($nextQuantity, $product->availableStock());
+        $this->ensureQuantityDoesNotExceedStock($nextQuantity, $product);
 
         if ($cartItem) {
             $cartItem->update(['quantity' => $nextQuantity]);
@@ -96,7 +101,7 @@ class CartController extends Controller
         $cartItem->load('product');
         $quantity = $this->validatedQuantity($request);
 
-        $this->ensureQuantityDoesNotExceedStock($quantity, $cartItem->product->availableStock());
+        $this->ensureQuantityDoesNotExceedStock($quantity, $cartItem->product);
 
         $cartItem->update(['quantity' => $quantity]);
 
@@ -124,8 +129,14 @@ class CartController extends Controller
         return (int) $validated['quantity'];
     }
 
-    private function ensureQuantityDoesNotExceedStock(int $quantity, int $stock): void
+    private function ensureQuantityDoesNotExceedStock(int $quantity, Product $product): void
     {
+        if ($product->isPreOrder()) {
+            return;
+        }
+
+        $stock = $product->availableStock();
+
         if ($quantity <= $stock) {
             return;
         }

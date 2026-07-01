@@ -17,6 +17,15 @@ type CatalogProduct = {
     description: string;
     price: number;
     stock: number;
+    is_pre_order: boolean;
+    fulfillment_type: {
+        code: 'ready_stock' | 'pre_order';
+        label: string;
+    };
+    pre_order_estimate_days: number | null;
+    pre_order_deadline: string | null;
+    pre_order_min_quantity: number | null;
+    pre_order_note: string | null;
     image: string | null;
     seller: {
         id: number;
@@ -70,7 +79,7 @@ const imageSource = (image: string | null) => {
 export default function CatalogShow({ product }: CatalogShowProps) {
     const { auth, flash } = usePage<PageProps>().props;
     const src = imageSource(product.image);
-    const isOutOfStock = product.stock <= 0;
+    const isOutOfStock = !product.is_pre_order && product.stock <= 0;
     const isBuyer = auth.user?.role === 'buyer';
 
     return (
@@ -130,16 +139,59 @@ export default function CatalogShow({ product }: CatalogShowProps) {
                                     </Badge>
                                     <Badge
                                         className={
-                                            isOutOfStock
-                                                ? 'rounded-full bg-orange-50 text-orange-700'
-                                                : 'rounded-full bg-emerald-50 text-emerald-700'
+                                            product.is_pre_order
+                                                ? 'rounded-full bg-blue-50 text-blue-700'
+                                                : isOutOfStock
+                                                  ? 'rounded-full bg-orange-50 text-orange-700'
+                                                  : 'rounded-full bg-emerald-50 text-emerald-700'
                                         }
                                     >
-                                        {isOutOfStock
-                                            ? 'Stok habis'
-                                            : `Stok ${product.stock}`}
+                                        {product.is_pre_order
+                                            ? `Pre-Order ${product.pre_order_estimate_days} hari`
+                                            : isOutOfStock
+                                              ? 'Stok habis'
+                                              : `Stok ${product.stock}`}
                                     </Badge>
+                                    {!product.is_pre_order && (
+                                        <Badge
+                                            className={
+                                                isOutOfStock
+                                                    ? 'rounded-full bg-orange-50 text-orange-700'
+                                                    : 'rounded-full bg-emerald-50 text-emerald-700'
+                                            }
+                                        >
+                                            {isOutOfStock
+                                                ? 'Stok habis'
+                                                : `Ready Stock`}
+                                        </Badge>
+                                    )}
                                 </div>
+
+                                {product.is_pre_order && (
+                                    <div className="rounded-[8px] border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+                                        Produk ini memakai sistem pre-order.
+                                        Estimasi siap dalam{' '}
+                                        {product.pre_order_estimate_days} hari
+                                        setelah pesanan dibuat.
+                                        {product.pre_order_note && (
+                                            <span className="mt-1 block text-blue-700">
+                                                {product.pre_order_note}
+                                            </span>
+                                        )}
+                                        {(product.pre_order_deadline ||
+                                            product.pre_order_min_quantity) && (
+                                            <span className="mt-2 block text-xs text-blue-700">
+                                                {product.pre_order_deadline &&
+                                                    `Deadline ${product.pre_order_deadline}`}
+                                                {product.pre_order_deadline &&
+                                                    product.pre_order_min_quantity &&
+                                                    ' • '}
+                                                {product.pre_order_min_quantity &&
+                                                    `Minimum ${product.pre_order_min_quantity} pesanan`}
+                                            </span>
+                                        )}
+                                    </div>
+                                )}
 
                                 <div>
                                     <h1 className="text-3xl font-semibold tracking-normal text-slate-950 sm:text-4xl">
@@ -173,14 +225,14 @@ export default function CatalogShow({ product }: CatalogShowProps) {
                                                 <Button
                                                     type="button"
                                                     disabled
-                                                    className="h-11 w-fit rounded-full bg-[#0080FF] px-5 hover:bg-[#006FE0]"
+                                                    className="h-11 w-fit px-5"
                                                 >
                                                     Stok habis
                                                 </Button>
                                             ) : (
                                                 <Button
                                                     asChild
-                                                    className="h-11 w-fit rounded-full bg-[#0080FF] px-5 hover:bg-[#006FE0]"
+                                                    className="h-11 w-fit px-5"
                                                 >
                                                     <Link
                                                         href={checkoutConfirm({
@@ -240,7 +292,7 @@ export default function CatalogShow({ product }: CatalogShowProps) {
                                     <Button
                                         type="button"
                                         disabled
-                                        className="h-11 w-full rounded-full bg-[#0080FF] hover:bg-[#006FE0]"
+                                        className="h-11 w-full"
                                     >
                                         <ShoppingCart className="size-4" />
                                         Khusus buyer
@@ -249,16 +301,13 @@ export default function CatalogShow({ product }: CatalogShowProps) {
                                     <Button
                                         type="button"
                                         disabled
-                                        className="h-11 w-full rounded-full bg-[#0080FF] hover:bg-[#006FE0]"
+                                        className="h-11 w-full"
                                     >
                                         <ShoppingCart className="size-4" />
                                         Stok habis
                                     </Button>
                                 ) : (
-                                    <Button
-                                        asChild
-                                        className="h-11 w-full rounded-full bg-[#0080FF] hover:bg-[#006FE0]"
-                                    >
+                                    <Button asChild className="h-11 w-full">
                                         <Link href={login()}>
                                             <ShoppingCart className="size-4" />
                                             Login untuk tambah

@@ -18,6 +18,10 @@ class EnsureUserIsPicketOfficer
             abort(403);
         }
 
+        if ($request->user()->up_jurusan_id === null) {
+            return to_route('picket.unassigned');
+        }
+
         return $next($request);
     }
 }

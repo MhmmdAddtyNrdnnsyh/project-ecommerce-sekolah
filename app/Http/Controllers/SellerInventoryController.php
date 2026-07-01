@@ -26,6 +26,8 @@ class SellerInventoryController extends Controller
         ]);
 
         $query = Product::query()
+            ->select('products.*')
+            ->selectRaw(Product::REAL_STOCK_SQL.' as real_stock')
             ->with('category:id,name,slug')
             ->where('seller_id', $seller->id);
 
@@ -38,8 +40,10 @@ class SellerInventoryController extends Controller
 
         if ($stock = $validated['stock'] ?? null) {
             match ($stock) {
-                'out' => $query->where('stock', 0),
-                'low' => $query->where('stock', '>', 0)->where('stock', '<=', Product::LOW_STOCK_THRESHOLD),
+                'out' => $query->whereRaw(Product::REAL_STOCK_SQL.' = 0'),
+                'low' => $query
+                    ->whereRaw(Product::REAL_STOCK_SQL.' > 0')
+                    ->whereRaw(Product::REAL_STOCK_SQL.' <= ?', [Product::LOW_STOCK_THRESHOLD]),
                 default => null,
             };
         }
@@ -51,33 +55,37 @@ class SellerInventoryController extends Controller
         $totalProducts = Product::query()->where('seller_id', $seller->id)->count();
         $lowStockCount = Product::query()
             ->where('seller_id', $seller->id)
-            ->where('stock', '>', 0)
-            ->where('stock', '<=', Product::LOW_STOCK_THRESHOLD)
+            ->whereRaw(Product::REAL_STOCK_SQL.' > 0')
+            ->whereRaw(Product::REAL_STOCK_SQL.' <= ?', [Product::LOW_STOCK_THRESHOLD])
             ->count();
         $outOfStockCount = Product::query()
             ->where('seller_id', $seller->id)
-            ->where('stock', 0)
+            ->whereRaw(Product::REAL_STOCK_SQL.' = 0')
             ->count();
 
         return Inertia::render('seller/inventory/index', [
-            'products' => $products->through(fn (Product $product) => [
-                'id' => $product->id,
-                'name' => $product->name,
-                'slug' => $product->slug,
-                'image' => $product->image,
-                'status' => [
-                    'code' => $product->status->value,
-                    'label' => $product->status->label(),
-                ],
-                'stock' => $product->stock,
-                'category' => [
-                    'id' => $product->category->id,
-                    'name' => $product->category->name,
-                    'slug' => $product->category->slug,
-                ],
-                'is_low_stock' => $product->stock > 0 && $product->stock <= Product::LOW_STOCK_THRESHOLD,
-                'is_out_of_stock' => $product->stock === 0,
-            ]),
+            'products' => $products->through(function (Product $product) {
+                $realStock = (int) $product->getAttribute('real_stock');
+
+                return [
+                    'id' => $product->id,
+                    'name' => $product->name,
+                    'slug' => $product->slug,
+                    'image' => $product->image,
+                    'status' => [
+                        'code' => $product->status->value,
+                        'label' => $product->status->label(),
+                    ],
+                    'stock' => $realStock,
+                    'category' => [
+                        'id' => $product->category->id,
+                        'name' => $product->category->name,
+                        'slug' => $product->category->slug,
+                    ],
+                    'is_low_stock' => $realStock > 0 && $realStock <= Product::LOW_STOCK_THRESHOLD,
+                    'is_out_of_stock' => $realStock === 0,
+                ];
+            }),
             'summary' => [
                 'total' => $totalProducts,
                 'low_stock' => $lowStockCount,

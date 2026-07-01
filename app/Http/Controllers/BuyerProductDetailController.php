@@ -32,6 +32,15 @@ class BuyerProductDetailController extends Controller
                 'description' => $product->description,
                 'price' => $product->price,
                 'stock' => $product->availableStock(),
+                'is_pre_order' => $product->isPreOrder(),
+                'fulfillment_type' => [
+                    'code' => $product->fulfillment_type->value,
+                    'label' => $product->fulfillment_type->label(),
+                ],
+                'pre_order_estimate_days' => $product->pre_order_estimate_days,
+                'pre_order_deadline' => $product->pre_order_deadline?->toDateString(),
+                'pre_order_min_quantity' => $product->pre_order_min_quantity,
+                'pre_order_note' => $product->pre_order_note,
                 'image' => $product->image,
                 'seller' => $product->seller ? [
                     'id' => $product->seller->id,

@@ -88,8 +88,21 @@ type UserGrowthPoint = {
     sellers: number;
 };
 
+type OrderTrendPoint = {
+    month: string;
+    orders: number;
+    revenue: number;
+};
+
 type RoleDistributionItem = {
     role: string;
+    label: string;
+    value: number;
+    fill: string;
+};
+
+type ProductStatusItem = {
+    status: string;
     label: string;
     value: number;
     fill: string;
@@ -124,7 +137,9 @@ type DashboardProps = {
     dashboard: {
         stats: StatCardData[];
         userGrowthData: UserGrowthPoint[];
+        orderTrendData: OrderTrendPoint[];
         roleDistributionData: RoleDistributionItem[];
+        productStatusData: ProductStatusItem[];
         adminQueue: AdminQueueItem[];
         platformHealth: PlatformHealthItem[];
         activities: ActivityItem[];
@@ -158,6 +173,17 @@ const userGrowthConfig = {
     },
 } satisfies ChartConfig;
 
+const orderTrendConfig = {
+    orders: {
+        label: 'Order',
+        color: '#2563eb',
+    },
+    revenue: {
+        label: 'Nilai transaksi',
+        color: '#10b981',
+    },
+} satisfies ChartConfig;
+
 const roleDistributionConfig = {
     value: {
         label: 'Persentase',
@@ -177,6 +203,12 @@ const roleDistributionConfig = {
     admin: {
         label: 'Admin',
         color: '#e11d48',
+    },
+} satisfies ChartConfig;
+
+const productStatusConfig = {
+    value: {
+        label: 'Produk',
     },
 } satisfies ChartConfig;
 
@@ -267,6 +299,10 @@ function StatCard({ stat }: { stat: StatCardData }) {
 export default function Dashboard({ dashboard: data }: DashboardProps) {
     const roleTotal = data.roleDistributionData.reduce(
         (total, role) => total + role.value,
+        0,
+    );
+    const productStatusTotal = data.productStatusData.reduce(
+        (total, status) => total + status.value,
         0,
     );
 
@@ -441,6 +477,172 @@ export default function Dashboard({ dashboard: data }: DashboardProps) {
                                         </div>
                                     ))}
                                 </div>
+                            </CardContent>
+                        </Card>
+                    </section>
+
+                    <section className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+                        <Card className="gap-0 rounded-[8px] border border-slate-100 bg-white py-0 shadow-sm lg:col-span-2">
+                            <CardHeader className="flex-row items-start p-6 pb-0">
+                                <div className="space-y-1">
+                                    <CardTitle className="text-xl font-semibold text-slate-950">
+                                        Tren Order Online
+                                    </CardTitle>
+                                    <CardDescription>
+                                        Jumlah order dan nilai transaksi selama
+                                        8 bulan terakhir
+                                    </CardDescription>
+                                </div>
+                                <CardAction>
+                                    <Badge className="rounded-[6px] bg-slate-100 text-slate-600">
+                                        Gross
+                                    </Badge>
+                                </CardAction>
+                            </CardHeader>
+                            <CardContent className="p-6">
+                                <ChartContainer
+                                    config={orderTrendConfig}
+                                    className="aspect-auto h-72 w-full"
+                                >
+                                    <BarChart
+                                        accessibilityLayer
+                                        data={data.orderTrendData}
+                                        margin={{
+                                            top: 12,
+                                            right: 12,
+                                            left: -18,
+                                            bottom: 0,
+                                        }}
+                                    >
+                                        <CartesianGrid vertical={false} />
+                                        <XAxis
+                                            dataKey="month"
+                                            tickLine={false}
+                                            tickMargin={10}
+                                            axisLine={false}
+                                        />
+                                        <YAxis
+                                            tickLine={false}
+                                            axisLine={false}
+                                            tickMargin={10}
+                                            width={38}
+                                        />
+                                        <ChartTooltip
+                                            cursor={false}
+                                            content={
+                                                <ChartTooltipContent
+                                                    indicator="dot"
+                                                    className="rounded-[8px] bg-white text-slate-900 ring-slate-200"
+                                                />
+                                            }
+                                        />
+                                        <Bar
+                                            dataKey="orders"
+                                            fill="var(--color-orders)"
+                                            radius={[4, 4, 0, 0]}
+                                        />
+                                        <Bar
+                                            dataKey="revenue"
+                                            fill="var(--color-revenue)"
+                                            radius={[4, 4, 0, 0]}
+                                        />
+                                    </BarChart>
+                                </ChartContainer>
+                            </CardContent>
+                        </Card>
+
+                        <Card className="gap-0 rounded-[8px] border border-slate-100 bg-white py-0 shadow-sm">
+                            <CardHeader className="p-6 pb-0">
+                                <CardTitle className="text-xl font-semibold text-slate-950">
+                                    Status Produk
+                                </CardTitle>
+                                <CardDescription>
+                                    Komposisi moderasi katalog produk
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="flex flex-col items-center p-6">
+                                {data.productStatusData.length === 0 ? (
+                                    <div className="grid h-56 place-items-center text-sm text-slate-500">
+                                        Belum ada produk.
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div className="relative size-56">
+                                            <ChartContainer
+                                                config={productStatusConfig}
+                                                className="aspect-square size-full"
+                                            >
+                                                <PieChart>
+                                                    <ChartTooltip
+                                                        cursor={false}
+                                                        content={
+                                                            <ChartTooltipContent
+                                                                hideLabel
+                                                                nameKey="label"
+                                                                className="rounded-[8px] bg-white text-slate-900 ring-slate-200"
+                                                            />
+                                                        }
+                                                    />
+                                                    <Pie
+                                                        data={
+                                                            data.productStatusData
+                                                        }
+                                                        dataKey="value"
+                                                        nameKey="label"
+                                                        innerRadius={58}
+                                                        outerRadius={86}
+                                                        paddingAngle={2}
+                                                        strokeWidth={3}
+                                                    >
+                                                        {data.productStatusData.map(
+                                                            (entry) => (
+                                                                <Cell
+                                                                    key={
+                                                                        entry.status
+                                                                    }
+                                                                    fill={
+                                                                        entry.fill
+                                                                    }
+                                                                />
+                                                            ),
+                                                        )}
+                                                    </Pie>
+                                                </PieChart>
+                                            </ChartContainer>
+                                            <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                                                <span className="text-2xl font-semibold text-slate-800 tabular-nums">
+                                                    {productStatusTotal}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div className="mt-4 grid w-full gap-2">
+                                            {data.productStatusData.map(
+                                                (status) => (
+                                                    <div
+                                                        key={status.status}
+                                                        className="flex items-center justify-between gap-3 text-sm"
+                                                    >
+                                                        <span className="flex min-w-0 items-center gap-2 text-slate-600">
+                                                            <span
+                                                                className="size-3 shrink-0 rounded-full"
+                                                                style={{
+                                                                    backgroundColor:
+                                                                        status.fill,
+                                                                }}
+                                                            />
+                                                            <span className="truncate">
+                                                                {status.label}
+                                                            </span>
+                                                        </span>
+                                                        <span className="font-semibold text-slate-950 tabular-nums">
+                                                            {status.value}
+                                                        </span>
+                                                    </div>
+                                                ),
+                                            )}
+                                        </div>
+                                    </>
+                                )}
                             </CardContent>
                         </Card>
                     </section>

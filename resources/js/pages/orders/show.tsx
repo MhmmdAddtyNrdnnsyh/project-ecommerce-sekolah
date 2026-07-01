@@ -1,5 +1,11 @@
-import { Head, Link } from '@inertiajs/react';
-import { ArrowLeft, ShoppingCart, Store } from 'lucide-react';
+import { Form, Head, Link, usePage } from '@inertiajs/react';
+import {
+    ArrowLeft,
+    CheckCircle2,
+    ExternalLink,
+    ShoppingCart,
+    Store,
+} from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -21,7 +27,16 @@ import { index as ordersIndex } from '@/routes/orders';
 
 type BuyerOrder = {
     id: number;
+    code: string;
     status: { code: string; label: string };
+    can_complete: boolean;
+    payment: {
+        status: { code: string; label: string };
+        method: { code: string; label: string };
+        proof_url: string | null;
+        confirmed_at: string | null;
+        rejection_reason: string | null;
+    };
     total_price: number;
     items: {
         id: number;
@@ -29,6 +44,11 @@ type BuyerOrder = {
         price: number;
         quantity: number;
         subtotal: number;
+        is_pre_order: boolean;
+        pre_order_estimate_days: number | null;
+        pre_order_deadline: string | null;
+        pre_order_min_quantity: number | null;
+        pre_order_note: string | null;
         status: { code: string; label: string };
         seller: { id: number; name: string };
     }[];
@@ -55,16 +75,18 @@ const formatDate = (value: string | null) =>
         : '-';
 
 export default function BuyerOrdersShow({ order }: Props) {
+    const { flash } = usePage().props;
+
     return (
         <>
-            <Head title={`Order #${order.id}`} />
+            <Head title={`Order ${order.code}`} />
             <main className="min-h-[calc(100svh-4rem)] bg-slate-50 px-4 py-6 sm:px-6 lg:px-8">
                 <div className="mx-auto w-full max-w-7xl space-y-6">
                     <section className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
                         <div>
                             <Badge className="mb-2 rounded-[6px] bg-blue-50 text-blue-700">
                                 <ShoppingCart className="size-3.5" />
-                                Order #{order.id}
+                                {order.code}
                             </Badge>
                             <h1 className="text-2xl font-semibold text-slate-950">
                                 Detail Order
@@ -85,6 +107,19 @@ export default function BuyerOrdersShow({ order }: Props) {
                         </Button>
                     </section>
 
+                    {(flash.success || flash.error) && (
+                        <div
+                            role="status"
+                            className={`rounded-[8px] border px-4 py-3 text-sm ${
+                                flash.error
+                                    ? 'border-rose-200 bg-rose-50 text-rose-700'
+                                    : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                            }`}
+                        >
+                            {flash.error || flash.success}
+                        </div>
+                    )}
+
                     <Card className="rounded-[8px] border border-slate-100 bg-white shadow-sm">
                         <CardHeader>
                             <CardTitle>Ringkasan</CardTitle>
@@ -92,7 +127,7 @@ export default function BuyerOrdersShow({ order }: Props) {
                                 Status order dan total transaksi.
                             </CardDescription>
                         </CardHeader>
-                        <CardContent className="grid gap-4 sm:grid-cols-3">
+                        <CardContent className="grid gap-4 sm:grid-cols-4">
                             <div>
                                 <p className="text-sm text-slate-500">Status</p>
                                 <Badge className="mt-2 rounded-[6px] bg-blue-50 text-blue-700">
@@ -109,6 +144,40 @@ export default function BuyerOrdersShow({ order }: Props) {
                             </div>
                             <div>
                                 <p className="text-sm text-slate-500">
+                                    Pembayaran
+                                </p>
+                                <Badge
+                                    className={
+                                        paymentStatusClass[
+                                            order.payment.status.code
+                                        ] ??
+                                        'mt-2 rounded-[6px] bg-slate-100 text-slate-700'
+                                    }
+                                >
+                                    {order.payment.status.label}
+                                </Badge>
+                                <p className="mt-2 text-xs text-slate-500">
+                                    {order.payment.method.label}
+                                </p>
+                                {order.payment.proof_url && (
+                                    <a
+                                        href={order.payment.proof_url}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-blue-700 hover:text-blue-800"
+                                    >
+                                        <ExternalLink className="size-3.5" />
+                                        Bukti bayar
+                                    </a>
+                                )}
+                                {order.payment.rejection_reason && (
+                                    <p className="mt-2 text-xs text-rose-600">
+                                        {order.payment.rejection_reason}
+                                    </p>
+                                )}
+                            </div>
+                            <div>
+                                <p className="text-sm text-slate-500">
                                     Total harga
                                 </p>
                                 <p className="mt-1 text-lg font-semibold text-slate-950">
@@ -116,6 +185,32 @@ export default function BuyerOrdersShow({ order }: Props) {
                                 </p>
                             </div>
                         </CardContent>
+                        {order.can_complete && (
+                            <div className="border-t border-slate-100 px-6 pb-6">
+                                <Form
+                                    action={`/orders/${order.id}/complete`}
+                                    method="post"
+                                    className="mt-5"
+                                >
+                                    {({ processing }) => (
+                                        <Button
+                                            type="submit"
+                                            disabled={processing}
+                                            className="w-fit bg-emerald-600 hover:bg-emerald-700"
+                                        >
+                                            <CheckCircle2 className="size-4" />
+                                            {processing
+                                                ? 'Memproses...'
+                                                : 'Pesanan diterima'}
+                                        </Button>
+                                    )}
+                                </Form>
+                                <p className="mt-2 text-xs text-slate-500">
+                                    Klik setelah barang sudah diterima agar
+                                    status pesanan menjadi selesai.
+                                </p>
+                            </div>
+                        )}
                     </Card>
 
                     <Card className="gap-0 rounded-[8px] border border-slate-100 bg-white py-0 shadow-sm">
@@ -137,6 +232,17 @@ export default function BuyerOrdersShow({ order }: Props) {
                                                 <p className="line-clamp-2 font-semibold text-slate-950">
                                                     {item.product_name}
                                                 </p>
+                                                {item.is_pre_order && (
+                                                    <p className="mt-1 text-xs text-blue-700">
+                                                        PO{' '}
+                                                        {
+                                                            item.pre_order_estimate_days
+                                                        }{' '}
+                                                        hari
+                                                        {item.pre_order_deadline &&
+                                                            ` • Deadline ${item.pre_order_deadline}`}
+                                                    </p>
+                                                )}
                                                 <p className="mt-1 inline-flex items-center gap-1 text-sm text-slate-500">
                                                     <Store className="size-3.5" />
                                                     {item.seller.name}
@@ -203,7 +309,22 @@ export default function BuyerOrdersShow({ order }: Props) {
                                         {order.items.map((item) => (
                                             <TableRow key={item.id}>
                                                 <TableCell className="px-5 font-medium text-slate-950">
-                                                    {item.product_name}
+                                                    <div>
+                                                        <p>
+                                                            {item.product_name}
+                                                        </p>
+                                                        {item.is_pre_order && (
+                                                            <p className="mt-1 text-xs font-normal text-blue-700">
+                                                                PO{' '}
+                                                                {
+                                                                    item.pre_order_estimate_days
+                                                                }{' '}
+                                                                hari
+                                                                {item.pre_order_deadline &&
+                                                                    ` • Deadline ${item.pre_order_deadline}`}
+                                                            </p>
+                                                        )}
+                                                    </div>
                                                 </TableCell>
                                                 <TableCell className="px-5">
                                                     <span className="inline-flex items-center gap-1 text-sm text-slate-600">
@@ -242,4 +363,11 @@ export default function BuyerOrdersShow({ order }: Props) {
 
 BuyerOrdersShow.layout = {
     breadcrumbs: [{ title: 'Orders', href: ordersIndex() }],
+};
+
+const paymentStatusClass: Record<string, string> = {
+    unpaid: 'mt-2 rounded-[6px] bg-slate-100 text-slate-700',
+    pending_confirmation: 'mt-2 rounded-[6px] bg-amber-50 text-amber-700',
+    paid: 'mt-2 rounded-[6px] bg-emerald-50 text-emerald-700',
+    rejected: 'mt-2 rounded-[6px] bg-rose-50 text-rose-700',
 };

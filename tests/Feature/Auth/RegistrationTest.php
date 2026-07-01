@@ -86,3 +86,29 @@ test('teachers can register without a class', function () {
         ->assertRedirect(route('login'))
         ->assertSessionHas('status', 'Registrasi berhasil. Silakan masuk menggunakan akun yang baru dibuat.');
 });
+
+test('users cannot become sellers directly from registration', function () {
+    $this->seed(SchoolReferenceSeeder::class);
+
+    $teacherPosition = Position::query()->where('code', Position::TEACHER)->firstOrFail();
+
+    $response = $this->post(route('register.store'), [
+        'name' => 'Seller User',
+        'email' => 'seller@example.com',
+        'account_type' => 'seller',
+        'position_id' => $teacherPosition->id,
+        'password' => 'password',
+        'password_confirmation' => 'password',
+    ]);
+
+    $this->assertGuest();
+    $this->assertDatabaseHas('users', [
+        'email' => 'seller@example.com',
+        'role' => UserRole::Buyer->value,
+        'position_id' => $teacherPosition->id,
+        'class_id' => null,
+    ]);
+    $response
+        ->assertRedirect(route('login'))
+        ->assertSessionHas('status', 'Registrasi berhasil. Silakan masuk menggunakan akun yang baru dibuat.');
+});

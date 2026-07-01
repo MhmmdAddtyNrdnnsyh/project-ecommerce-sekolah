@@ -20,9 +20,9 @@ type Props = {
 const fieldClassName = 'flex flex-col gap-1';
 const labelClassName = 'text-xs leading-[1.4] font-medium text-[#334155]';
 const iconClassName =
-    'pointer-events-none absolute left-3 top-1/2 z-10 size-5 -translate-y-1/2 text-[#94A3B8]';
+    'pointer-events-none absolute left-3 top-1/2 z-10 size-5 -translate-y-1/2 text-slate-400';
 const inputClassName =
-    'h-11 rounded-lg border-[#E2E8F0] bg-white pl-10 pr-4 text-base text-[#0F172A] shadow-none placeholder:text-[#94A3B8] focus-visible:border-[#0080FF] focus-visible:ring-2 focus-visible:ring-[#BCE0FF] md:text-base';
+    'h-11 rounded-[8px] border-slate-200 bg-white pl-10 pr-4 text-base text-slate-900 shadow-none placeholder:text-slate-400 focus-visible:border-blue-500 focus-visible:ring-2 focus-visible:ring-blue-500/20 md:text-base';
 const errorClassName = 'pt-1 text-xs';
 
 export default function Login({ status, canResetPassword }: Props) {
@@ -85,7 +85,7 @@ export default function Login({ status, canResetPassword }: Props) {
                                     {canResetPassword && (
                                         <Link
                                             href={request()}
-                                            className="ml-auto text-xs font-semibold text-[#006FE0] transition-colors hover:text-[#0059B8]"
+                                            className="ml-auto text-xs font-semibold text-blue-700 transition-colors hover:text-blue-800"
                                             tabIndex={5}
                                         >
                                             Lupa kata sandi?
@@ -116,7 +116,7 @@ export default function Login({ status, canResetPassword }: Props) {
                                     id="remember"
                                     name="remember"
                                     tabIndex={3}
-                                    className="border-[#E2E8F0] bg-white data-checked:border-[#0080FF] data-checked:bg-[#0080FF] data-checked:text-white"
+                                    className="border-slate-200 bg-white data-checked:border-blue-600 data-checked:bg-blue-600 data-checked:text-white"
                                 />
                                 <Label
                                     htmlFor="remember"
@@ -128,7 +128,7 @@ export default function Login({ status, canResetPassword }: Props) {
 
                             <Button
                                 type="submit"
-                                className="mt-2 h-11 w-full rounded-lg bg-[#0080FF] text-base font-semibold text-white shadow-sm transition-colors hover:bg-[#006FE0] active:scale-[0.98]"
+                                className="mt-2 h-11 w-full text-base font-semibold shadow-sm transition-colors active:scale-[0.98]"
                                 tabIndex={4}
                                 disabled={processing}
                                 data-test="login-button"
@@ -147,7 +147,7 @@ export default function Login({ status, canResetPassword }: Props) {
                             <Link
                                 href={register()}
                                 tabIndex={6}
-                                className="font-semibold text-[#006FE0] transition-colors hover:text-[#0059B8]"
+                                className="font-semibold text-blue-700 transition-colors hover:text-blue-800"
                             >
                                 Daftar di sini
                             </Link>

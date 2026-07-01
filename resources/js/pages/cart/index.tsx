@@ -9,6 +9,7 @@ import {
     Tags,
     Trash2,
 } from 'lucide-react';
+import { useState } from 'react';
 import InputError from '@/components/input-error';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -30,14 +31,13 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
+import { home } from '@/routes';
 import { index as cartIndex } from '@/routes/cart';
 import {
     destroy as destroyCartItem,
     update as updateCartItem,
 } from '@/routes/cart/items';
-import { home } from '@/routes';
 import { show as catalogShow } from '@/routes/catalog';
-import { useState } from 'react';
 
 type CartItem = {
     id: number;
@@ -49,6 +49,11 @@ type CartItem = {
         slug: string;
         price: number;
         stock: number;
+        is_pre_order: boolean;
+        pre_order_estimate_days: number | null;
+        pre_order_deadline: string | null;
+        pre_order_min_quantity: number | null;
+        pre_order_note: string | null;
         image: string | null;
         seller: {
             id: number;
@@ -104,7 +109,9 @@ export default function CartIndex({ items, summary }: CartIndexProps) {
         ),
     };
     const hasInvalidStock = selectedItems.some(
-        (item) => item.product.stock <= 0 || item.quantity > item.product.stock,
+        (item) =>
+            !item.product.is_pre_order &&
+            (item.product.stock <= 0 || item.quantity > item.product.stock),
     );
     const checkoutHref = `/checkout/confirm?items=${selectedIds.join(',')}`;
 
@@ -214,8 +221,10 @@ export default function CartIndex({ items, summary }: CartIndexProps) {
                                             item.product.image,
                                         );
                                         const hasStockIssue =
-                                            item.product.stock <= 0 ||
-                                            item.quantity > item.product.stock;
+                                            !item.product.is_pre_order &&
+                                            (item.product.stock <= 0 ||
+                                                item.quantity >
+                                                    item.product.stock);
 
                                         return (
                                             <div
@@ -282,11 +291,10 @@ export default function CartIndex({ items, summary }: CartIndexProps) {
                                                                         : 'text-slate-500'
                                                                 }`}
                                                             >
-                                                                Stok{' '}
-                                                                {
-                                                                    item.product
-                                                                        .stock
-                                                                }
+                                                                {item.product
+                                                                    .is_pre_order
+                                                                    ? `Pre-Order ${item.product.pre_order_estimate_days} hari`
+                                                                    : `Stok ${item.product.stock}`}
                                                             </p>
                                                         </div>
                                                     </Link>
@@ -480,12 +488,16 @@ export default function CartIndex({ items, summary }: CartIndexProps) {
                                                                             : undefined
                                                                     }
                                                                 >
-                                                                    Stok{' '}
+                                                                    {item
+                                                                        .product
+                                                                        .is_pre_order
+                                                                        ? `Pre-Order ${item.product.pre_order_estimate_days} hari`
+                                                                        : 'Stok '}
                                                                 </span>
-                                                                {
+                                                                {!item.product
+                                                                    .is_pre_order &&
                                                                     item.product
-                                                                        .stock
-                                                                }
+                                                                        .stock}
                                                             </p>
                                                         </TableCell>
                                                         <TableCell className="px-6 py-4">
@@ -569,14 +581,14 @@ export default function CartIndex({ items, summary }: CartIndexProps) {
                                         <Button
                                             type="button"
                                             disabled
-                                            className="h-10 w-full rounded-[8px] bg-[#0080FF] hover:bg-[#006FE0]"
+                                            className="h-10 w-full rounded-[8px] bg-blue-600 hover:bg-blue-700"
                                         >
                                             Checkout
                                         </Button>
                                     ) : (
                                         <Button
                                             asChild
-                                            className="h-10 w-full rounded-[8px] bg-[#0080FF] hover:bg-[#006FE0]"
+                                            className="h-10 w-full rounded-[8px] bg-blue-600 hover:bg-blue-700"
                                         >
                                             <Link href={checkoutHref}>
                                                 Checkout
@@ -650,7 +662,8 @@ function QuantityStepper({
                             className={`${buttonClassName} rounded-[8px] border-slate-200 bg-white`}
                             disabled={
                                 processing ||
-                                item.quantity >= item.product.stock
+                                (!item.product.is_pre_order &&
+                                    item.quantity >= item.product.stock)
                             }
                             aria-label="Tambah quantity"
                         >

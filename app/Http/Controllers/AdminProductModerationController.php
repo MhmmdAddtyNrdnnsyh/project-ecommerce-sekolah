@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\ProductSalesMethod;
 use App\Enums\ProductStatus;
 use App\Http\Requests\Admin\RejectProductRequest;
 use App\Models\Product;
@@ -17,6 +18,7 @@ class AdminProductModerationController extends Controller
             'products' => Product::query()
                 ->with(['category:id,name,slug', 'seller:id,name,email'])
                 ->where('status', ProductStatus::Pending)
+                ->where('sales_method', ProductSalesMethod::SelfManaged)
                 ->whereNotNull('seller_id')
                 ->oldest()
                 ->get(['id', 'seller_id', 'category_id', 'name', 'slug', 'description', 'price', 'stock', 'status', 'created_at'])
@@ -72,6 +74,10 @@ class AdminProductModerationController extends Controller
 
     private function ensurePending(Product $product): void
     {
-        abort_unless($product->status === ProductStatus::Pending, 404);
+        abort_unless(
+            $product->status === ProductStatus::Pending
+            && $product->sales_method === ProductSalesMethod::SelfManaged,
+            404,
+        );
     }
 }

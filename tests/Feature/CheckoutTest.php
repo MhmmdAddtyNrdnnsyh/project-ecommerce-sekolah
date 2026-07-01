@@ -1,6 +1,8 @@
 <?php
 
 use App\Enums\OrderStatus;
+use App\Enums\PaymentMethod;
+use App\Enums\PaymentStatus;
 use App\Enums\ProductSalesMethod;
 use App\Enums\ProductStatus;
 use App\Enums\UserRole;
@@ -31,17 +33,20 @@ test('authenticated buyer can checkout and convert cart into an order', function
 
     $response = $this->from(route('cart.index'))->post(route('checkout'));
 
-    $response
-        ->assertRedirect(route('cart.index'))
-        ->assertSessionHas('success', 'Pesanan berhasil dibuat.');
-
     $this->assertDatabaseHas('orders', [
         'user_id' => $buyer->id,
         'status' => OrderStatus::Pending->value,
+        'payment_status' => PaymentStatus::Unpaid->value,
+        'payment_method' => PaymentMethod::Cash->value,
         'total_price' => 10000,
     ]);
 
     $order = $buyer->orders()->first();
+    $response
+        ->assertRedirect(route('orders.show', $order))
+        ->assertSessionHas('success', 'Pesanan berhasil dibuat.');
+
+    expect($order->code)->toStartWith('TRX-');
 
     $this->assertDatabaseHas('order_items', [
         'order_id' => $order->id,
@@ -64,9 +69,9 @@ test('authenticated buyer can checkout and convert cart into an order', function
     ]);
 });
 
-test('checkout stores pickup method details', function () {
+test('checkout only accepts cash payment for mvp', function () {
     $buyer = User::factory()->create(['role' => UserRole::Buyer]);
-    $product = Product::factory()->approved()->create(['price' => 5000, 'stock' => 3]);
+    $product = Product::factory()->approved()->create(['stock' => 3]);
 
     CartItem::query()->create([
         'user_id' => $buyer->id,
@@ -77,16 +82,87 @@ test('checkout stores pickup method details', function () {
     $this->actingAs($buyer)
         ->from(route('checkout.confirm'))
         ->post(route('checkout'), [
+            'payment_method' => 'transfer',
+        ])
+        ->assertRedirect(route('checkout.confirm'))
+        ->assertSessionHasErrors('payment_method');
+
+    $this->assertDatabaseMissing('orders', [
+        'user_id' => $buyer->id,
+    ]);
+});
+
+test('buyer can checkout pre-order product without ready stock', function () {
+    $buyer = User::factory()->create(['role' => UserRole::Buyer]);
+    $product = Product::factory()
+        ->approved()
+        ->preOrder(7)
+        ->create([
+            'name' => 'Kaos Kelas PO',
+            'price' => 50000,
+            'stock' => 0,
+            'pre_order_deadline' => '2026-08-01',
+            'pre_order_min_quantity' => 10,
+            'pre_order_note' => 'Produksi setelah kuota terkumpul.',
+        ]);
+
+    CartItem::query()->create([
+        'user_id' => $buyer->id,
+        'product_id' => $product->id,
+        'quantity' => 2,
+    ]);
+
+    $response = $this->actingAs($buyer)
+        ->from(route('checkout.confirm'))
+        ->post(route('checkout'), [
+            'pickup_method' => 'pickup',
+        ]);
+
+    $this->assertDatabaseHas('orders', [
+        'user_id' => $buyer->id,
+        'total_price' => 100000,
+    ]);
+    $response->assertRedirect(route('orders.show', $buyer->orders()->first()));
+    $this->assertDatabaseHas('order_items', [
+        'product_id' => $product->id,
+        'product_name' => 'Kaos Kelas PO',
+        'quantity' => 2,
+        'subtotal' => 100000,
+        'is_pre_order' => true,
+        'pre_order_estimate_days' => 7,
+        'pre_order_deadline' => '2026-08-01 00:00:00',
+        'pre_order_min_quantity' => 10,
+        'pre_order_note' => 'Produksi setelah kuota terkumpul.',
+    ]);
+    $this->assertDatabaseHas('products', [
+        'id' => $product->id,
+        'stock' => 0,
+    ]);
+});
+
+test('checkout stores pickup method details', function () {
+    $buyer = User::factory()->create(['role' => UserRole::Buyer]);
+    $product = Product::factory()->approved()->create(['price' => 5000, 'stock' => 3]);
+
+    CartItem::query()->create([
+        'user_id' => $buyer->id,
+        'product_id' => $product->id,
+        'quantity' => 1,
+    ]);
+
+    $response = $this->actingAs($buyer)
+        ->from(route('checkout.confirm'))
+        ->post(route('checkout'), [
             'pickup_method' => 'delivery',
             'pickup_location' => 'Titip di meja piket.',
-        ])
-        ->assertRedirect(route('cart.index'));
+        ]);
 
     $this->assertDatabaseHas('orders', [
         'user_id' => $buyer->id,
         'pickup_method' => 'delivery',
         'pickup_location' => 'Titip di meja piket.',
     ]);
+    $response->assertRedirect(route('orders.show', $buyer->orders()->first()));
 });
 
 test('delivery checkout requires pickup location', function () {
@@ -219,19 +295,19 @@ test('buy now checkout creates order without adding product to cart', function (
         'stock' => 4,
     ]);
 
-    $this->actingAs($buyer)
+    $response = $this->actingAs($buyer)
         ->from(route('checkout.confirm', ['product' => $product->slug]))
         ->post(route('checkout'), [
             'pickup_method' => 'pickup',
             'buy_now_product_id' => $product->id,
             'buy_now_quantity' => 1,
-        ])
-        ->assertRedirect(route('cart.index'));
+        ]);
 
     $this->assertDatabaseHas('orders', [
         'user_id' => $buyer->id,
         'total_price' => 6000,
     ]);
+    $response->assertRedirect(route('orders.show', $buyer->orders()->first()));
     $this->assertDatabaseHas('order_items', [
         'product_id' => $product->id,
         'product_name' => 'Mie Goreng',
@@ -263,18 +339,18 @@ test('checkout only converts selected cart items into an order', function () {
         'quantity' => 1,
     ]);
 
-    $this->actingAs($buyer)
+    $response = $this->actingAs($buyer)
         ->from(route('checkout.confirm', ['items' => (string) $selectedItem->id]))
         ->post(route('checkout'), [
             'pickup_method' => 'pickup',
             'selected_cart_item_ids' => [$selectedItem->id],
-        ])
-        ->assertRedirect(route('cart.index'));
+        ]);
 
     $this->assertDatabaseHas('orders', [
         'user_id' => $buyer->id,
         'total_price' => 5000,
     ]);
+    $response->assertRedirect(route('orders.show', $buyer->orders()->first()));
     $this->assertDatabaseHas('order_items', [
         'product_id' => $selectedProduct->id,
         'subtotal' => 5000,
@@ -315,9 +391,10 @@ test('checkout uses up jurusan consignment stock without changing seller product
         'quantity' => 2,
     ]);
 
-    $this->actingAs($buyer)
-        ->post(route('checkout'), ['pickup_method' => 'pickup'])
-        ->assertRedirect(route('cart.index'));
+    $response = $this->actingAs($buyer)
+        ->post(route('checkout'), ['pickup_method' => 'pickup']);
+
+    $response->assertRedirect(route('orders.show', $buyer->orders()->first()));
 
     $this->assertDatabaseHas('up_jurusan_consignments', [
         'id' => $consignment->id,
@@ -335,6 +412,46 @@ test('checkout uses up jurusan consignment stock without changing seller product
         'gross_amount' => 6000,
         'commission_amount' => 600,
         'seller_amount' => 5400,
+    ]);
+});
+
+test('checkout records up jurusan owned product sales in stock movements', function () {
+    $buyer = User::factory()->create(['role' => UserRole::Buyer]);
+    $upJurusan = UpJurusan::factory()->create();
+    $product = Product::factory()
+        ->approved()
+        ->create([
+            'seller_id' => null,
+            'up_jurusan_id' => $upJurusan->id,
+            'name' => 'Kaos RPL',
+            'price' => 50000,
+            'sales_method' => ProductSalesMethod::UpJurusan,
+            'stock' => 5,
+        ]);
+    CartItem::query()->create([
+        'user_id' => $buyer->id,
+        'product_id' => $product->id,
+        'quantity' => 2,
+    ]);
+
+    $response = $this->actingAs($buyer)
+        ->post(route('checkout'), ['pickup_method' => 'pickup']);
+
+    $response->assertRedirect(route('orders.show', $buyer->orders()->first()));
+
+    $this->assertDatabaseHas('products', [
+        'id' => $product->id,
+        'stock' => 3,
+    ]);
+    $this->assertDatabaseHas('up_jurusan_stock_movements', [
+        'up_jurusan_consignment_id' => null,
+        'product_id' => $product->id,
+        'user_id' => $buyer->id,
+        'type' => 'out',
+        'quantity' => 2,
+        'gross_amount' => 100000,
+        'commission_amount' => 100000,
+        'seller_amount' => 0,
     ]);
 });
 

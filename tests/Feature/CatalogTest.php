@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\ProductFulfillmentType;
 use App\Enums\ProductSalesMethod;
 use App\Enums\ProductStatus;
 use App\Enums\UpJurusanConsignmentStatus;
@@ -119,6 +120,46 @@ test('home page renders buyer landing catalog and can filter categories', functi
             ->has('products', 1)
             ->where('products.0.name', 'Buku Tulis Polos'),
         );
+});
+
+test('public catalog shows approved pre-order products without ready stock', function () {
+    $seller = User::factory()->create(['role' => UserRole::Seller]);
+    $category = Category::factory()->create([
+        'name' => 'Makanan',
+        'slug' => 'makanan',
+    ]);
+
+    $product = Product::factory()
+        ->for($seller, 'seller')
+        ->for($category)
+        ->approved()
+        ->preOrder(5)
+        ->create([
+            'name' => 'Brownies PO',
+            'slug' => 'brownies-po',
+            'stock' => 0,
+            'pre_order_deadline' => '2026-08-01',
+            'pre_order_min_quantity' => 15,
+        ]);
+
+    $this->get(route('catalog.index'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->has('products', 1)
+            ->where('products.0.name', 'Brownies PO')
+            ->where('products.0.stock', 0)
+            ->where('products.0.is_pre_order', true)
+            ->where('products.0.fulfillment_type.code', ProductFulfillmentType::PreOrder->value)
+            ->where('products.0.pre_order_estimate_days', 5)
+            ->where('products.0.pre_order_deadline', '2026-08-01')
+            ->where('products.0.pre_order_min_quantity', 15),
+        );
+
+    $this->get(route('catalog.show', ['product' => $product->slug]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('product.is_pre_order', true)
+            ->where('product.pre_order_estimate_days', 5));
 });
 
 test('public catalog can search products from query string', function () {

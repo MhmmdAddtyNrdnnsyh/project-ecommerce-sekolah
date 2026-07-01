@@ -89,6 +89,34 @@ test('buyer order summary status follows seller item status updates', function (
         );
 });
 
+test('buyer can complete sent order items after receiving the order', function () {
+    $buyer = User::factory()->create(['role' => UserRole::Buyer]);
+    $seller = User::factory()->create(['role' => UserRole::Seller]);
+    $product = Product::factory()->for($seller, 'seller')->approved()->create();
+    $order = Order::factory()->for($buyer)->create([
+        'status' => OrderStatus::Pending,
+    ]);
+    $orderItem = OrderItem::factory()->for($order)->for($product)->create([
+        'status' => OrderItemStatus::Sent,
+    ]);
+
+    $this->actingAs($buyer)
+        ->from(route('orders.show', $order))
+        ->post(route('orders.complete', $order))
+        ->assertRedirect(route('orders.show', $order))
+        ->assertSessionHas('success');
+
+    expect($orderItem->fresh()->status)->toBe(OrderItemStatus::Completed);
+
+    $this->actingAs($buyer)
+        ->get(route('orders.show', $order))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('order.status.code', OrderItemStatus::Completed->value)
+            ->where('order.can_complete', false),
+        );
+});
+
 test('buyer can view an empty order list', function () {
     $buyer = User::factory()->create(['role' => UserRole::Buyer]);
 

@@ -10,13 +10,20 @@ use App\Models\Product;
 use App\Models\User;
 
 test('order item status exposes values labels and next transitions', function () {
-    expect(OrderItemStatus::values())->toBe(['pending', 'packed', 'sent'])
+    expect(OrderItemStatus::values())->toBe(['pending', 'in_production', 'ready', 'packed', 'sent', 'completed'])
         ->and(OrderItemStatus::Pending->label())->toBe('Menunggu')
+        ->and(OrderItemStatus::InProduction->label())->toBe('Diproduksi')
+        ->and(OrderItemStatus::Ready->label())->toBe('Siap')
         ->and(OrderItemStatus::Packed->label())->toBe('Dikemas')
         ->and(OrderItemStatus::Sent->label())->toBe('Dikirim')
+        ->and(OrderItemStatus::Completed->label())->toBe('Selesai')
         ->and(OrderItemStatus::Pending->next())->toBe(OrderItemStatus::Packed)
         ->and(OrderItemStatus::Packed->next())->toBe(OrderItemStatus::Sent)
-        ->and(OrderItemStatus::Sent->next())->toBeNull();
+        ->and(OrderItemStatus::Sent->next())->toBe(OrderItemStatus::Completed)
+        ->and(OrderItemStatus::Completed->next())->toBeNull()
+        ->and(OrderItemStatus::Pending->nextForPreOrder())->toBe(OrderItemStatus::InProduction)
+        ->and(OrderItemStatus::InProduction->nextForPreOrder())->toBe(OrderItemStatus::Ready)
+        ->and(OrderItemStatus::Ready->nextForPreOrder())->toBe(OrderItemStatus::Sent);
 });
 
 test('order item has default pending status', function () {
@@ -96,14 +103,14 @@ test('checkout creates order items with pending status', function () {
 
     $response = $this->from(route('cart.index'))->post(route('checkout'));
 
-    $response->assertRedirect(route('cart.index'));
-    $response->assertSessionHas('success', 'Pesanan berhasil dibuat.');
-
     $this->assertDatabaseHas('orders', [
         'user_id' => $buyer->id,
         'status' => OrderStatus::Pending->value,
         'total_price' => 10000,
     ]);
+
+    $response->assertRedirect(route('orders.show', $buyer->orders()->first()));
+    $response->assertSessionHas('success', 'Pesanan berhasil dibuat.');
 
     $this->assertDatabaseHas('order_items', [
         'product_id' => $product->id,

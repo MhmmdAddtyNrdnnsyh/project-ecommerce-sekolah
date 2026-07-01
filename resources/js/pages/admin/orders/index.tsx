@@ -1,4 +1,4 @@
-import { Head, router } from '@inertiajs/react';
+import { Head, router, usePage } from '@inertiajs/react';
 import { Search, ShoppingCart } from 'lucide-react';
 import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
@@ -22,8 +22,16 @@ import {
 
 type AdminOrder = {
     id: number;
+    code: string;
     status: { code: string; label: string };
     total_price: number;
+    payment: {
+        status: { code: string; label: string };
+        method: { code: string; label: string };
+        proof_url: string | null;
+        confirmed_at: string | null;
+        rejection_reason: string | null;
+    };
     items_count: number;
     buyer: { id: number; name: string; email: string };
     items: {
@@ -32,6 +40,10 @@ type AdminOrder = {
         quantity: number;
         subtotal: number;
         status: { code: string; label: string };
+        payment: {
+            status: { code: string; label: string };
+            method: { code: string; label: string };
+        };
         seller: { id: number; name: string };
     }[];
     created_at: string | null;
@@ -63,15 +75,15 @@ const formatDate = (value: string | null) =>
         : '-';
 
 export default function AdminOrdersIndex({ orders, filters }: Props) {
+    const { flash } = usePage().props;
     const [q, setQ] = useState(filters.q);
 
     const submitFilters = (event: React.FormEvent) => {
         event.preventDefault();
-        router.get(
-            '/admin/orders',
-            q ? { q } : {},
-            { preserveState: true, replace: true },
-        );
+        router.get('/admin/orders', q ? { q } : {}, {
+            preserveState: true,
+            replace: true,
+        });
     };
 
     return (
@@ -81,16 +93,30 @@ export default function AdminOrdersIndex({ orders, filters }: Props) {
                 <div className="space-y-6">
                     <section>
                         <Badge className="mb-2 rounded-[6px] bg-blue-50 text-blue-700">
-                            <ShoppingCart className="size-3.5" />{' '}
-                            {orders.total} order
+                            <ShoppingCart className="size-3.5" /> {orders.total}{' '}
+                            order
                         </Badge>
                         <h1 className="text-2xl font-semibold text-slate-950">
                             Orders
                         </h1>
                         <p className="mt-1 text-sm text-slate-500">
                             Pantau transaksi buyer dan item fulfillment seller.
+                            Admin memantau status pembayaran dan fulfillment.
                         </p>
                     </section>
+
+                    {(flash.success || flash.error) && (
+                        <div
+                            role="status"
+                            className={`rounded-[8px] border px-4 py-3 text-sm ${
+                                flash.error
+                                    ? 'border-rose-200 bg-rose-50 text-rose-700'
+                                    : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                            }`}
+                        >
+                            {flash.error || flash.success}
+                        </div>
+                    )}
 
                     <Card className="gap-0 rounded-[8px] border-slate-100 py-0 shadow-sm">
                         <CardHeader className="border-b border-slate-100 p-5">
@@ -130,6 +156,7 @@ export default function AdminOrdersIndex({ orders, filters }: Props) {
                                             'Buyer',
                                             'Item',
                                             'Total',
+                                            'Payment',
                                             'Status',
                                             'Waktu',
                                         ].map((heading) => (
@@ -146,7 +173,7 @@ export default function AdminOrdersIndex({ orders, filters }: Props) {
                                     {orders.data.length === 0 && (
                                         <TableRow>
                                             <TableCell
-                                                colSpan={6}
+                                                colSpan={7}
                                                 className="py-10 text-center text-slate-500"
                                             >
                                                 Tidak ada order.
@@ -156,7 +183,7 @@ export default function AdminOrdersIndex({ orders, filters }: Props) {
                                     {orders.data.map((order) => (
                                         <TableRow key={order.id}>
                                             <TableCell className="px-5 font-medium text-slate-950">
-                                                #{order.id}
+                                                {order.code}
                                             </TableCell>
                                             <TableCell className="px-5">
                                                 <div>{order.buyer.name}</div>
@@ -174,8 +201,29 @@ export default function AdminOrdersIndex({ orders, filters }: Props) {
                                                             {item.product_name}{' '}
                                                             x{item.quantity}
                                                             <span className="ml-2 text-xs text-slate-500">
-                                                                {item.seller.name}
+                                                                {
+                                                                    item.seller
+                                                                        .name
+                                                                }
                                                             </span>
+                                                            <Badge
+                                                                className={
+                                                                    paymentStatusClass[
+                                                                        item
+                                                                            .payment
+                                                                            .status
+                                                                            .code
+                                                                    ] ??
+                                                                    'rounded-[6px] bg-slate-100 text-slate-700'
+                                                                }
+                                                            >
+                                                                {
+                                                                    item
+                                                                        .payment
+                                                                        .status
+                                                                        .label
+                                                                }
+                                                            </Badge>
                                                         </div>
                                                     ))}
                                                     {order.items_count >
@@ -194,6 +242,41 @@ export default function AdminOrdersIndex({ orders, filters }: Props) {
                                                 {formatRupiah(
                                                     order.total_price,
                                                 )}
+                                            </TableCell>
+                                            <TableCell className="min-w-64 px-5">
+                                                <div className="space-y-2">
+                                                    <div className="flex flex-wrap items-center gap-2">
+                                                        <Badge
+                                                            className={
+                                                                paymentStatusClass[
+                                                                    order
+                                                                        .payment
+                                                                        .status
+                                                                        .code
+                                                                ] ??
+                                                                'rounded-[6px] bg-slate-100 text-slate-700'
+                                                            }
+                                                        >
+                                                            {
+                                                                order.payment
+                                                                    .status
+                                                                    .label
+                                                            }
+                                                        </Badge>
+                                                        <span className="text-xs font-medium text-slate-500">
+                                                            {
+                                                                order.payment
+                                                                    .method
+                                                                    .label
+                                                            }
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-xs text-slate-500">
+                                                        Pembayaran tunai
+                                                        dikonfirmasi oleh seller
+                                                        atau picket.
+                                                    </p>
+                                                </div>
                                             </TableCell>
                                             <TableCell className="px-5">
                                                 <Badge className="rounded-[6px] bg-blue-50 text-blue-700">
@@ -217,4 +300,11 @@ export default function AdminOrdersIndex({ orders, filters }: Props) {
 
 AdminOrdersIndex.layout = {
     breadcrumbs: [{ title: 'Orders', href: '/admin/orders' }],
+};
+
+const paymentStatusClass: Record<string, string> = {
+    unpaid: 'rounded-[6px] bg-slate-100 text-slate-700',
+    pending_confirmation: 'rounded-[6px] bg-amber-50 text-amber-700',
+    paid: 'rounded-[6px] bg-emerald-50 text-emerald-700',
+    rejected: 'rounded-[6px] bg-rose-50 text-rose-700',
 };

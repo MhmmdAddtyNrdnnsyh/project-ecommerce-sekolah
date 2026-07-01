@@ -168,14 +168,11 @@ export function AppHeader() {
                             <Button
                                 asChild
                                 variant="ghost"
-                                className="h-10 rounded-full px-4"
+                                className="h-10 px-4"
                             >
                                 <Link href={login()}>Login</Link>
                             </Button>
-                            <Button
-                                asChild
-                                className="h-10 rounded-full bg-[#0080FF] px-4 hover:bg-[#006FE0]"
-                            >
+                            <Button asChild className="h-10 px-4">
                                 <Link href={register()}>Register</Link>
                             </Button>
                         </>

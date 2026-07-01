@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\ProductFulfillmentType;
 use App\Enums\ProductStatus;
 use App\Models\Category;
 use App\Models\Product;
@@ -26,7 +27,8 @@ class BuyerCatalogController extends Controller
                 ->whereHas('products', fn ($query) => $query
                     ->where('status', ProductStatus::Approved)
                     ->where(fn ($query) => $query
-                        ->where('stock', '>', 0)
+                        ->where('fulfillment_type', ProductFulfillmentType::PreOrder)
+                        ->orWhere('stock', '>', 0)
                         ->orWhereHas('upJurusanConsignments', fn ($query) => $query->whereColumn('received_quantity', '>', 'sold_quantity'))))
                 ->orderBy('name')
                 ->get(['id', 'name', 'slug'])
@@ -41,7 +43,8 @@ class BuyerCatalogController extends Controller
                 ->with('upJurusanConsignments:id,product_id,received_quantity,sold_quantity')
                 ->where('status', ProductStatus::Approved)
                 ->where(fn ($query) => $query
-                    ->where('stock', '>', 0)
+                    ->where('fulfillment_type', ProductFulfillmentType::PreOrder)
+                    ->orWhere('stock', '>', 0)
                     ->orWhereHas('upJurusanConsignments', fn ($query) => $query->whereColumn('received_quantity', '>', 'sold_quantity')))
                 ->when($search !== '', fn ($query) => $query->where(function ($query) use ($search) {
                     $query
@@ -53,7 +56,7 @@ class BuyerCatalogController extends Controller
                     fn ($query) => $query->where('slug', $category),
                 ))
                 ->latest()
-                ->get(['id', 'seller_id', 'up_jurusan_id', 'category_id', 'name', 'slug', 'description', 'price', 'stock', 'sales_method', 'image'])
+                ->get(['id', 'seller_id', 'up_jurusan_id', 'category_id', 'name', 'slug', 'description', 'price', 'stock', 'sales_method', 'fulfillment_type', 'pre_order_estimate_days', 'pre_order_deadline', 'pre_order_min_quantity', 'pre_order_note', 'image'])
                 ->map(fn (Product $product) => [
                     'id' => $product->id,
                     'name' => $product->name,
@@ -61,6 +64,15 @@ class BuyerCatalogController extends Controller
                     'description' => $product->description,
                     'price' => $product->price,
                     'stock' => $product->availableStock(),
+                    'is_pre_order' => $product->isPreOrder(),
+                    'fulfillment_type' => [
+                        'code' => $product->fulfillment_type->value,
+                        'label' => $product->fulfillment_type->label(),
+                    ],
+                    'pre_order_estimate_days' => $product->pre_order_estimate_days,
+                    'pre_order_deadline' => $product->pre_order_deadline?->toDateString(),
+                    'pre_order_min_quantity' => $product->pre_order_min_quantity,
+                    'pre_order_note' => $product->pre_order_note,
                     'image' => $product->image,
                     'seller' => $product->seller ? [
                         'id' => $product->seller->id,

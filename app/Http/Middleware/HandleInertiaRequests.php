@@ -6,6 +6,7 @@ use App\Enums\OrderItemStatus;
 use App\Enums\ProductStatus;
 use App\Enums\UserRole;
 use App\Models\CartItem;
+use App\Models\NotificationDismissal;
 use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\User;
@@ -57,6 +58,7 @@ class HandleInertiaRequests extends Middleware
             'flash' => [
                 'success' => $request->session()->get('success'),
                 'error' => $request->session()->get('error'),
+                'receipt_url' => $request->session()->get('receipt_url'),
             ],
         ];
     }
@@ -81,7 +83,7 @@ class HandleInertiaRequests extends Middleware
     }
 
     /**
-     * @return array{notifications: array<int, array{type: string, title: string, description: string, href: string}>, supportEmail: string|null}|null
+     * @return array{notifications: array<int, array{key: string, type: string, title: string, description: string, href: string}>, supportEmail: string|null}|null
      */
     private function adminHeader(Request $request): ?array
     {
@@ -92,19 +94,23 @@ class HandleInertiaRequests extends Middleware
             return null;
         }
 
+        $dismissedKeys = $this->dismissedNotificationKeys($admin);
+
         $products = Product::query()
             ->with('seller:id,name')
             ->where('status', ProductStatus::Pending)
             ->whereNotNull('seller_id')
             ->oldest()
             ->limit(self::HEADER_NOTIFICATION_LIMIT)
-            ->get(['id', 'seller_id', 'name'])
+            ->get(['id', 'seller_id', 'name', 'updated_at'])
             ->map(fn (Product $product) => [
+                'key' => $this->notificationKey('admin-product-pending', $product->id, $product->updated_at?->getTimestamp()),
                 'type' => 'product',
                 'title' => $product->name,
                 'description' => 'Menunggu moderasi dari '.$product->seller->name,
                 'href' => route('admin.products.moderation.index', absolute: false),
-            ]);
+            ])
+            ->reject(fn (array $notification) => in_array($notification['key'], $dismissedKeys, true));
 
         return [
             'notifications' => $products->values()->all(),
@@ -113,7 +119,7 @@ class HandleInertiaRequests extends Middleware
     }
 
     /**
-     * @return array{notifications: array<int, array{type: string, title: string, description: string, href: string}>, supportEmail: string|null}|null
+     * @return array{notifications: array<int, array{key: string, type: string, title: string, description: string, href: string}>, supportEmail: string|null}|null
      */
     private function sellerHeader(Request $request): ?array
     {
@@ -124,6 +130,8 @@ class HandleInertiaRequests extends Middleware
             return null;
         }
 
+        $dismissedKeys = $this->dismissedNotificationKeys($seller);
+
         $orders = OrderItem::query()
             ->whereHas('product', fn ($query) => $query->where('seller_id', $seller->id))
             ->where('status', OrderItemStatus::Pending)
@@ -131,28 +139,48 @@ class HandleInertiaRequests extends Middleware
             ->limit(self::HEADER_NOTIFICATION_LIMIT)
             ->get()
             ->map(fn (OrderItem $item) => [
+                'key' => $this->notificationKey('seller-order-pending', $item->id, $item->updated_at?->getTimestamp()),
                 'type' => 'order',
                 'title' => "Pesanan #{$item->order_id}",
                 'description' => $item->product_name.' menunggu diproses',
                 'href' => route('seller.orders.show', $item, absolute: false),
-            ]);
+            ])
+            ->reject(fn (array $notification) => in_array($notification['key'], $dismissedKeys, true));
 
         $stock = Product::query()
             ->where('seller_id', $seller->id)
             ->where('stock', '<=', Product::LOW_STOCK_THRESHOLD)
             ->orderBy('stock')
             ->limit(self::HEADER_NOTIFICATION_LIMIT)
-            ->get(['id', 'name', 'stock'])
+            ->get(['id', 'name', 'stock', 'updated_at'])
             ->map(fn (Product $product) => [
+                'key' => $this->notificationKey('seller-stock-low', $product->id, $product->updated_at?->getTimestamp()),
                 'type' => 'stock',
                 'title' => $product->name,
                 'description' => $product->stock === 0 ? 'Stok habis' : "Stok tersisa {$product->stock}",
                 'href' => route('seller.inventory.index', ['q' => $product->name], absolute: false),
-            ]);
+            ])
+            ->reject(fn (array $notification) => in_array($notification['key'], $dismissedKeys, true));
 
         return [
             'notifications' => $orders->concat($stock)->values()->all(),
             'supportEmail' => config('mail.from.address'),
         ];
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function dismissedNotificationKeys(User $user): array
+    {
+        return NotificationDismissal::query()
+            ->where('user_id', $user->id)
+            ->pluck('key')
+            ->all();
+    }
+
+    private function notificationKey(string $type, int $id, ?int $version): string
+    {
+        return "{$type}:{$id}:".($version ?? 0);
     }
 }

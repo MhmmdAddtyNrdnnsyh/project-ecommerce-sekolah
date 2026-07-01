@@ -5,6 +5,7 @@ namespace Database\Factories;
 use App\Enums\OrderStatus;
 use App\Models\Order;
 use App\Models\User;
+use App\Support\TransactionCode;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -17,6 +18,7 @@ class OrderFactory extends Factory
     public function definition(): array
     {
         return [
+            'code' => TransactionCode::make(),
             'user_id' => User::factory(),
             'status' => OrderStatus::Pending,
             'total_price' => 0,

@@ -62,7 +62,13 @@ import {
 } from '@/routes/seller/products';
 
 type StatTone = 'blue' | 'emerald' | 'amber' | 'rose';
-type OrderStatus = 'pending' | 'packed' | 'sent';
+type OrderStatus =
+    | 'pending'
+    | 'in_production'
+    | 'ready'
+    | 'packed'
+    | 'sent'
+    | 'completed';
 
 type SellerIconKey =
     | 'alertTriangle'
@@ -93,6 +99,14 @@ type SalesPoint = {
     orders: number;
 };
 
+type SalesChannelItem = {
+    channel: string;
+    label: string;
+    orders: number;
+    revenue: number;
+    fill: string;
+};
+
 type OrderMixItem = {
     status: OrderStatus;
     label: string;
@@ -102,10 +116,15 @@ type OrderMixItem = {
 
 type OrderItem = {
     id: number;
-    order_id: number;
+    source: 'online' | 'offline';
+    code?: string;
+    order_id: number | string;
     buyer: string;
     product: string;
     amount: string;
+    meta: string | null;
+    gross_amount: string | null;
+    commission_amount: string | null;
     status: OrderStatus;
     time: string;
 };
@@ -138,6 +157,7 @@ type SellerDashboardProps = {
     dashboard: {
         stats: StatCardData[];
         salesData: SalesPoint[];
+        salesChannelData: SalesChannelItem[];
         orderMixData: OrderMixItem[];
         orders: OrderItem[];
         topProducts: TopProductItem[];
@@ -172,6 +192,12 @@ const salesConfig = {
     },
 } satisfies ChartConfig;
 
+const salesChannelConfig = {
+    revenue: {
+        label: 'Omzet',
+    },
+} satisfies ChartConfig;
+
 const orderMixConfig = {
     value: {
         label: 'Pesanan',
@@ -186,6 +212,10 @@ const orderMixConfig = {
     },
     sent: {
         label: 'Dikirim',
+        color: '#6366f1',
+    },
+    completed: {
+        label: 'Selesai',
         color: '#10b981',
     },
 } satisfies ChartConfig;
@@ -222,15 +252,28 @@ const toneStyles: Record<
 
 const statusStyles: Record<OrderStatus, string> = {
     pending: 'bg-blue-50 text-blue-700',
+    in_production: 'bg-violet-50 text-violet-700',
+    ready: 'bg-cyan-50 text-cyan-700',
     packed: 'bg-amber-50 text-amber-700',
-    sent: 'bg-emerald-50 text-emerald-700',
+    sent: 'bg-indigo-50 text-indigo-700',
+    completed: 'bg-emerald-50 text-emerald-700',
 };
 
 const statusLabels: Record<OrderStatus, string> = {
     pending: 'Menunggu',
+    in_production: 'Diproduksi',
+    ready: 'Siap',
     packed: 'Dikemas',
     sent: 'Dikirim',
+    completed: 'Selesai',
 };
+
+const formatRupiah = (value: number) =>
+    new Intl.NumberFormat('id-ID', {
+        style: 'currency',
+        currency: 'IDR',
+        maximumFractionDigits: 0,
+    }).format(value);
 
 function StatCard({ stat }: { stat: StatCardData }) {
     const Icon = iconMap[stat.icon];
@@ -278,6 +321,14 @@ export default function SellerDashboard({
 }: SellerDashboardProps) {
     const orderMixTotal = data.orderMixData.reduce(
         (total, status) => total + status.value,
+        0,
+    );
+    const channelRevenueTotal = data.salesChannelData.reduce(
+        (total, item) => total + item.revenue,
+        0,
+    );
+    const channelOrderTotal = data.salesChannelData.reduce(
+        (total, item) => total + item.orders,
         0,
     );
     const taskHref = (action: string) => {
@@ -468,6 +519,174 @@ export default function SellerDashboard({
                         </Card>
                     </section>
 
+                    <section className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_1.2fr]">
+                        <Card className="gap-0 rounded-[8px] border border-slate-100 bg-white py-0 shadow-sm">
+                            <CardHeader className="p-6 pb-0">
+                                <CardTitle className="text-xl font-semibold text-slate-950">
+                                    Kanal Penjualan
+                                </CardTitle>
+                                <CardDescription>
+                                    Perbandingan omzet website dan POS UP
+                                    Jurusan dalam 30 hari terakhir
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="flex flex-col items-center p-6">
+                                {channelRevenueTotal === 0 ? (
+                                    <div className="grid h-56 place-items-center text-center text-sm text-slate-500">
+                                        Belum ada omzet kanal dalam 30 hari
+                                        terakhir.
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div className="relative size-56">
+                                            <ChartContainer
+                                                config={salesChannelConfig}
+                                                className="aspect-square size-full"
+                                            >
+                                                <PieChart>
+                                                    <ChartTooltip
+                                                        cursor={false}
+                                                        content={
+                                                            <ChartTooltipContent
+                                                                hideLabel
+                                                                nameKey="label"
+                                                                className="rounded-[8px] bg-white text-slate-900 ring-slate-200"
+                                                            />
+                                                        }
+                                                    />
+                                                    <Pie
+                                                        data={
+                                                            data.salesChannelData
+                                                        }
+                                                        dataKey="revenue"
+                                                        nameKey="label"
+                                                        innerRadius={58}
+                                                        outerRadius={86}
+                                                        paddingAngle={2}
+                                                        strokeWidth={3}
+                                                    >
+                                                        {data.salesChannelData.map(
+                                                            (entry) => (
+                                                                <Cell
+                                                                    key={
+                                                                        entry.channel
+                                                                    }
+                                                                    fill={
+                                                                        entry.fill
+                                                                    }
+                                                                />
+                                                            ),
+                                                        )}
+                                                    </Pie>
+                                                </PieChart>
+                                            </ChartContainer>
+                                            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
+                                                <span className="text-xs font-medium text-slate-500">
+                                                    Total
+                                                </span>
+                                                <span className="text-lg font-semibold text-slate-800 tabular-nums">
+                                                    {formatRupiah(
+                                                        channelRevenueTotal,
+                                                    )}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div className="mt-4 grid w-full gap-3">
+                                            {data.salesChannelData.map(
+                                                (item) => (
+                                                    <div
+                                                        key={item.channel}
+                                                        className="rounded-[8px] border border-slate-100 p-3"
+                                                    >
+                                                        <div className="flex items-center justify-between gap-3">
+                                                            <span className="flex min-w-0 items-center gap-2 text-sm font-medium text-slate-700">
+                                                                <span
+                                                                    className="size-3 shrink-0 rounded-full"
+                                                                    style={{
+                                                                        backgroundColor:
+                                                                            item.fill,
+                                                                    }}
+                                                                />
+                                                                <span className="truncate">
+                                                                    {item.label}
+                                                                </span>
+                                                            </span>
+                                                            <span className="text-sm font-semibold text-slate-950 tabular-nums">
+                                                                {formatRupiah(
+                                                                    item.revenue,
+                                                                )}
+                                                            </span>
+                                                        </div>
+                                                        <p className="mt-1 text-xs text-slate-500 tabular-nums">
+                                                            {item.orders} dari{' '}
+                                                            {channelOrderTotal}{' '}
+                                                            transaksi
+                                                        </p>
+                                                    </div>
+                                                ),
+                                            )}
+                                        </div>
+                                    </>
+                                )}
+                            </CardContent>
+                        </Card>
+
+                        <Card className="gap-0 rounded-[8px] border border-slate-100 bg-white py-0 shadow-sm">
+                            <CardHeader className="p-6 pb-0">
+                                <CardTitle className="text-xl font-semibold text-slate-950">
+                                    Catatan Kanal
+                                </CardTitle>
+                                <CardDescription>
+                                    Gunakan data ini untuk menentukan produksi,
+                                    stok titipan, dan prioritas katalog.
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="grid gap-3 p-6">
+                                {data.salesChannelData.map((item) => {
+                                    const percentage =
+                                        channelRevenueTotal > 0
+                                            ? Math.round(
+                                                  (item.revenue /
+                                                      channelRevenueTotal) *
+                                                      100,
+                                              )
+                                            : 0;
+
+                                    return (
+                                        <div
+                                            key={item.channel}
+                                            className="space-y-2"
+                                        >
+                                            <div className="flex items-center justify-between gap-3">
+                                                <span className="text-sm font-medium text-slate-700">
+                                                    {item.label}
+                                                </span>
+                                                <span className="text-sm font-semibold text-slate-950 tabular-nums">
+                                                    {percentage}%
+                                                </span>
+                                            </div>
+                                            <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                                                <div
+                                                    className="h-full rounded-full"
+                                                    style={{
+                                                        width: `${percentage}%`,
+                                                        backgroundColor:
+                                                            item.fill,
+                                                    }}
+                                                />
+                                            </div>
+                                            <p className="text-xs text-slate-500">
+                                                {item.channel === 'offline'
+                                                    ? 'Jika tinggi, pertimbangkan tambah stok titipan di UP Jurusan.'
+                                                    : 'Jika tinggi, pastikan stok mandiri dan status order cepat diproses.'}
+                                            </p>
+                                        </div>
+                                    );
+                                })}
+                            </CardContent>
+                        </Card>
+                    </section>
+
                     <section className="grid grid-cols-1 gap-6 xl:grid-cols-[1.7fr_1fr]">
                         <Card className="gap-0 rounded-[8px] border border-slate-100 bg-white py-0 shadow-sm">
                             <CardHeader className="flex-row items-center border-b border-slate-100 p-6">
@@ -530,16 +749,58 @@ export default function SellerDashboard({
                                                 className="border-slate-100 hover:bg-slate-50/70"
                                             >
                                                 <TableCell className="px-6 py-4 font-semibold text-slate-950">
-                                                    #{order.order_id}
+                                                    <div className="space-y-1">
+                                                        <span>
+                                                            {order.code ??
+                                                                `#${order.order_id}`}
+                                                        </span>
+                                                        <Badge
+                                                            variant="secondary"
+                                                            className={cn(
+                                                                'w-fit rounded-[6px] px-2 py-0.5 text-xs',
+                                                                order.source ===
+                                                                    'offline'
+                                                                    ? 'bg-emerald-50 text-emerald-700'
+                                                                    : 'bg-blue-50 text-blue-700',
+                                                            )}
+                                                        >
+                                                            {order.source ===
+                                                            'offline'
+                                                                ? 'POS'
+                                                                : 'Online'}
+                                                        </Badge>
+                                                    </div>
                                                 </TableCell>
                                                 <TableCell className="px-6 py-4 text-slate-600">
-                                                    {order.buyer}
+                                                    <div>
+                                                        <p>{order.buyer}</p>
+                                                        {order.meta && (
+                                                            <p className="mt-1 text-xs text-slate-500">
+                                                                {order.meta}
+                                                            </p>
+                                                        )}
+                                                    </div>
                                                 </TableCell>
                                                 <TableCell className="px-6 py-4 text-slate-600">
                                                     {order.product}
                                                 </TableCell>
                                                 <TableCell className="px-6 py-4 font-semibold text-slate-950">
-                                                    {order.amount}
+                                                    <div>
+                                                        <p>{order.amount}</p>
+                                                        {order.source ===
+                                                            'offline' && (
+                                                            <p className="mt-1 text-xs font-normal text-slate-500">
+                                                                Omzet{' '}
+                                                                {
+                                                                    order.gross_amount
+                                                                }{' '}
+                                                                • Komisi{' '}
+                                                                {
+                                                                    order.commission_amount
+                                                                }
+                                                            </p>
+                                                        )}
+                                                    </div>
                                                 </TableCell>
                                                 <TableCell className="px-6 py-4">
                                                     <Badge

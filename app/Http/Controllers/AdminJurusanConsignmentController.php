@@ -99,62 +99,35 @@ class AdminJurusanConsignmentController extends Controller
     {
         $this->authorizeAdminJurusan($request, $consignment);
 
-        $consignment->update(['status' => UpJurusanConsignmentStatus::Approved]);
-
-        return to_route('admin-jurusan.consignments.index')
-            ->with('success', 'Request titip barang disetujui.');
-    }
-
-    public function receive(Request $request, UpJurusanConsignment $consignment): RedirectResponse
-    {
-        /** @var User $adminJurusan */
-        $adminJurusan = $request->user();
-        $this->authorizeAdminJurusan($request, $consignment);
-        $validated = $request->validate([
-            'quantity' => ['required', 'integer', 'min:1'],
-            'commission_rate' => ['nullable', 'integer', 'min:0', 'max:100'],
-        ]);
-        $quantity = (int) $validated['quantity'];
-        $nextQuantity = $consignment->received_quantity + $quantity;
-
-        if ($consignment->status !== UpJurusanConsignmentStatus::Approved && $consignment->status !== UpJurusanConsignmentStatus::Received) {
-            throw ValidationException::withMessages([
-                'quantity' => 'Barang hanya bisa diterima setelah request disetujui.',
-            ]);
-        }
-
-        if ($nextQuantity > $consignment->requested_quantity) {
-            throw ValidationException::withMessages([
-                'quantity' => 'Jumlah diterima tidak boleh melebihi jumlah request.',
-            ]);
-        }
-
-        DB::transaction(function () use ($adminJurusan, $consignment, $quantity, $nextQuantity, $validated) {
-            $consignment->update([
-                'received_quantity' => $nextQuantity,
-                'commission_rate' => (int) ($validated['commission_rate'] ?? $consignment->commission_rate),
-                'status' => UpJurusanConsignmentStatus::Received,
-            ]);
-
-            UpJurusanStockMovement::query()->create([
-                'up_jurusan_consignment_id' => $consignment->id,
-                'user_id' => $adminJurusan->id,
-                'type' => 'in',
-                'quantity' => $quantity,
+        DB::transaction(function () use ($consignment) {
+            $consignment->update(['status' => UpJurusanConsignmentStatus::Approved]);
+            $consignment->product()->update([
+                'status' => ProductStatus::Approved,
+                'rejection_reason' => null,
             ]);
         });
 
-        return to_route('admin-jurusan.consignments.show', $consignment)
-            ->with('success', 'Barang fisik berhasil diterima.');
+        return to_route('admin-jurusan.consignments.index')
+            ->with('success', 'Request titip barang disetujui.');
     }
 
     public function reject(Request $request, UpJurusanConsignment $consignment): RedirectResponse
     {
         $this->authorizeAdminJurusan($request, $consignment);
 
-        DB::transaction(function () use ($consignment) {
-            $consignment->update(['status' => UpJurusanConsignmentStatus::Rejected]);
-            $consignment->product()->update(['status' => ProductStatus::Rejected]);
+        $validated = $request->validate([
+            'rejection_reason' => ['required', 'string', 'max:1000'],
+        ]);
+
+        DB::transaction(function () use ($consignment, $validated) {
+            $consignment->update([
+                'status' => UpJurusanConsignmentStatus::Rejected,
+                'note' => $validated['rejection_reason'],
+            ]);
+            $consignment->product()->update([
+                'status' => ProductStatus::Rejected,
+                'rejection_reason' => $validated['rejection_reason'],
+            ]);
         });
 
         return to_route('admin-jurusan.consignments.index')

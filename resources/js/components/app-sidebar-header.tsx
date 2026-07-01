@@ -9,6 +9,7 @@ import {
     ShoppingCart,
     Tags,
     Users,
+    X,
 } from 'lucide-react';
 import { useState } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -24,7 +25,6 @@ import {
 import {
     DropdownMenu,
     DropdownMenuContent,
-    DropdownMenuItem,
     DropdownMenuLabel,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
@@ -56,6 +56,15 @@ const notificationMenuStyle = {
     maxHeight:
         'min(24rem, var(--radix-dropdown-menu-content-available-height))',
 };
+
+type HeaderNotification = {
+    key: string;
+    type: string;
+    title: string;
+    description: string;
+    href: string;
+};
+
 export function AppSidebarHeader({
     breadcrumbs = [],
 }: {
@@ -240,24 +249,10 @@ export function AppSidebarHeader({
                                 {sellerHeader?.notifications.length ? (
                                     sellerHeader.notifications.map(
                                         (notification) => (
-                                            <DropdownMenuItem
-                                                key={`${notification.type}-${notification.href}`}
-                                                asChild
-                                            >
-                                                <Link
-                                                    href={notification.href}
-                                                    className="flex flex-col items-start gap-1 py-3"
-                                                >
-                                                    <span className="font-medium">
-                                                        {notification.title}
-                                                    </span>
-                                                    <span className="text-xs text-slate-500">
-                                                        {
-                                                            notification.description
-                                                        }
-                                                    </span>
-                                                </Link>
-                                            </DropdownMenuItem>
+                                            <NotificationItem
+                                                key={notification.key}
+                                                notification={notification}
+                                            />
                                         ),
                                     )
                                 ) : (
@@ -355,24 +350,10 @@ export function AppSidebarHeader({
                                 {adminHeader?.notifications.length ? (
                                     adminHeader.notifications.map(
                                         (notification) => (
-                                            <DropdownMenuItem
-                                                key={`${notification.type}-${notification.title}`}
-                                                asChild
-                                            >
-                                                <Link
-                                                    href={notification.href}
-                                                    className="flex flex-col items-start gap-1 py-3"
-                                                >
-                                                    <span className="font-medium">
-                                                        {notification.title}
-                                                    </span>
-                                                    <span className="text-xs text-slate-500">
-                                                        {
-                                                            notification.description
-                                                        }
-                                                    </span>
-                                                </Link>
-                                            </DropdownMenuItem>
+                                            <NotificationItem
+                                                key={notification.key}
+                                                notification={notification}
+                                            />
                                         ),
                                     )
                                 ) : (
@@ -452,7 +433,7 @@ export function AppSidebarHeader({
                         </Button>
                         <Button
                             asChild
-                            className="h-9 rounded-[8px] bg-[#0080FF] px-3 text-sm hover:bg-[#006FE0]"
+                            className="h-9 rounded-[8px] bg-blue-600 px-3 text-sm hover:bg-blue-700"
                         >
                             <Link href={register()}>Register</Link>
                         </Button>
@@ -503,5 +484,45 @@ export function AppSidebarHeader({
                 )}
             </div>
         </header>
+    );
+}
+
+function NotificationItem({
+    notification,
+}: {
+    notification: HeaderNotification;
+}) {
+    const dismiss = (event: React.MouseEvent<HTMLButtonElement>) => {
+        event.preventDefault();
+        event.stopPropagation();
+
+        router.delete('/notifications', {
+            data: { key: notification.key },
+            preserveScroll: true,
+        });
+    };
+
+    return (
+        <div className="group flex items-start gap-2 rounded-[6px] hover:bg-blue-50 focus-within:bg-blue-50">
+            <Link
+                href={notification.href}
+                className="flex min-w-0 flex-1 flex-col items-start gap-1 px-3 py-3 outline-none"
+            >
+                <span className="max-w-full truncate font-medium text-slate-900 group-hover:text-blue-900">
+                    {notification.title}
+                </span>
+                <span className="text-xs leading-5 text-slate-500 group-hover:text-blue-900">
+                    {notification.description}
+                </span>
+            </Link>
+            <button
+                type="button"
+                onClick={dismiss}
+                className="mt-2 mr-2 grid size-7 shrink-0 place-items-center rounded-[6px] text-slate-400 hover:bg-white hover:text-rose-600 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none"
+                aria-label={`Hapus notifikasi ${notification.title}`}
+            >
+                <X className="size-4" />
+            </button>
+        </div>
     );
 }

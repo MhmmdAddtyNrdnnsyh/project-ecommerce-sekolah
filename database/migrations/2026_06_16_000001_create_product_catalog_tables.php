@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\ProductSalesMethod;
 use App\Enums\ProductStatus;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
@@ -21,14 +22,16 @@ return new class extends Migration
 
         Schema::create('products', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('seller_id')->constrained('users')->cascadeOnDelete();
+            $table->foreignId('seller_id')->nullable()->constrained('users')->cascadeOnDelete();
             $table->foreignId('category_id')->constrained()->cascadeOnDelete();
             $table->string('name');
             $table->string('slug')->unique();
             $table->text('description');
             $table->unsignedInteger('price');
             $table->unsignedInteger('stock')->default(0);
+            $table->enum('sales_method', ProductSalesMethod::values())->default(ProductSalesMethod::SelfManaged->value);
             $table->enum('status', ProductStatus::values())->default(ProductStatus::Draft->value)->index();
+            $table->text('rejection_reason')->nullable();
             $table->string('image')->nullable();
             $table->timestamps();
         });

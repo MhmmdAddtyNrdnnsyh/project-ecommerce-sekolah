@@ -79,6 +79,7 @@ class AuthRedirect
             route('admin-jurusan.reports.index', absolute: false) => $user?->role === UserRole::AdminJurusan,
             route('seller.dashboard', absolute: false) => $user?->role === UserRole::Seller,
             route('picket.dashboard', absolute: false) => $user?->role === UserRole::PicketOfficer,
+            route('picket.receiving', absolute: false) => $user?->role === UserRole::PicketOfficer,
             route('picket.pos', absolute: false) => $user?->role === UserRole::PicketOfficer,
             route('picket.orders', absolute: false) => $user?->role === UserRole::PicketOfficer,
             route('picket.reports', absolute: false) => $user?->role === UserRole::PicketOfficer,

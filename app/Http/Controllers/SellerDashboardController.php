@@ -6,6 +6,7 @@ use App\Enums\OrderItemStatus;
 use App\Enums\ProductStatus;
 use App\Models\OrderItem;
 use App\Models\Product;
+use App\Models\UpJurusanStockMovement;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -24,6 +25,7 @@ class SellerDashboardController extends Controller
             'dashboard' => [
                 'stats' => $this->stats($seller),
                 'salesData' => $this->salesData($seller),
+                'salesChannelData' => $this->salesChannelData($seller),
                 'orderMixData' => $this->orderMixData($seller),
                 'orders' => $this->latestOrders($seller),
                 'topProducts' => $this->topProducts($seller),
@@ -48,9 +50,14 @@ class SellerDashboardController extends Controller
             ->whereHas('product', fn ($q) => $q->where('seller_id', $seller->id))
             ->whereBetween('created_at', [$start, $end])
             ->sum('subtotal');
+        $offlineRevenue = fn ($start, $end): int => (int) UpJurusanStockMovement::query()
+            ->where('type', 'out')
+            ->whereHas('consignment', fn ($q) => $q->where('seller_id', $seller->id))
+            ->whereBetween('created_at', [$start, $end])
+            ->sum('seller_amount');
 
-        $currentMonthRevenue = $revenue($currentMonthStart, $currentMonthEnd);
-        $lastMonthRevenue = $revenue($lastMonthStart, $lastMonthEnd);
+        $currentMonthRevenue = $revenue($currentMonthStart, $currentMonthEnd) + $offlineRevenue($currentMonthStart, $currentMonthEnd);
+        $lastMonthRevenue = $revenue($lastMonthStart, $lastMonthEnd) + $offlineRevenue($lastMonthStart, $lastMonthEnd);
 
         $revenueTrend = match (true) {
             $lastMonthRevenue > 0 => round(($currentMonthRevenue - $lastMonthRevenue) / $lastMonthRevenue * 100).'%',
@@ -63,6 +70,11 @@ class SellerDashboardController extends Controller
             ->whereBetween('created_at', [$currentMonthStart, $currentMonthEnd])
             ->distinct()
             ->count('order_id');
+        $incomingOrders += UpJurusanStockMovement::query()
+            ->where('type', 'out')
+            ->whereHas('consignment', fn ($q) => $q->where('seller_id', $seller->id))
+            ->whereBetween('created_at', [$currentMonthStart, $currentMonthEnd])
+            ->count();
 
         $activeProducts = Product::query()
             ->where('seller_id', $seller->id)
@@ -71,7 +83,8 @@ class SellerDashboardController extends Controller
 
         $lowStockProducts = Product::query()
             ->where('seller_id', $seller->id)
-            ->whereBetween('stock', [1, Product::LOW_STOCK_THRESHOLD])
+            ->whereRaw(Product::REAL_STOCK_SQL.' > 0')
+            ->whereRaw(Product::REAL_STOCK_SQL.' <= ?', [Product::LOW_STOCK_THRESHOLD])
             ->count();
 
         return [
@@ -127,20 +140,65 @@ class SellerDashboardController extends Controller
             ->groupByRaw('DATE(order_items.created_at)')
             ->get()
             ->keyBy('sale_date');
+        /** @var Collection<string, object{total_sales: int, total_orders: int}> $offlineTotals */
+        $offlineTotals = DB::table('up_jurusan_stock_movements')
+            ->join('up_jurusan_consignments', 'up_jurusan_stock_movements.up_jurusan_consignment_id', '=', 'up_jurusan_consignments.id')
+            ->where('up_jurusan_consignments.seller_id', $seller->id)
+            ->where('up_jurusan_stock_movements.type', 'out')
+            ->whereBetween('up_jurusan_stock_movements.created_at', [$start, $end])
+            ->selectRaw('DATE(up_jurusan_stock_movements.created_at) as sale_date, COALESCE(SUM(up_jurusan_stock_movements.seller_amount), 0) as total_sales, COUNT(*) as total_orders')
+            ->groupByRaw('DATE(up_jurusan_stock_movements.created_at)')
+            ->get()
+            ->keyBy('sale_date');
 
         return collect(range(6, 0))
-            ->map(function (int $daysAgo) use ($totals) {
+            ->map(function (int $daysAgo) use ($totals, $offlineTotals) {
                 $date = now()->subDays($daysAgo);
                 $dayStats = $totals->get($date->toDateString());
+                $offlineDayStats = $offlineTotals->get($date->toDateString());
 
                 return [
                     'day' => $date->translatedFormat('D'),
-                    'sales' => (int) ($dayStats->total_sales ?? 0),
-                    'orders' => (int) ($dayStats->total_orders ?? 0),
+                    'sales' => (int) ($dayStats->total_sales ?? 0) + (int) ($offlineDayStats->total_sales ?? 0),
+                    'orders' => (int) ($dayStats->total_orders ?? 0) + (int) ($offlineDayStats->total_orders ?? 0),
                 ];
             })
             ->values()
             ->all();
+    }
+
+    /**
+     * @return array<int, array{channel: string, label: string, orders: int, revenue: int, fill: string}>
+     */
+    private function salesChannelData(User $seller): array
+    {
+        $start = now()->subDays(29)->startOfDay();
+        $end = now()->endOfDay();
+
+        $onlineOrders = OrderItem::query()
+            ->whereHas('product', fn ($q) => $q->where('seller_id', $seller->id))
+            ->whereBetween('created_at', [$start, $end]);
+        $offlineOrders = UpJurusanStockMovement::query()
+            ->where('type', 'out')
+            ->whereHas('consignment', fn ($q) => $q->where('seller_id', $seller->id))
+            ->whereBetween('created_at', [$start, $end]);
+
+        return [
+            [
+                'channel' => 'online',
+                'label' => 'Website',
+                'orders' => (clone $onlineOrders)->distinct()->count('order_id'),
+                'revenue' => (int) (clone $onlineOrders)->sum('subtotal'),
+                'fill' => '#2563eb',
+            ],
+            [
+                'channel' => 'offline',
+                'label' => 'POS UP Jurusan',
+                'orders' => (clone $offlineOrders)->count(),
+                'revenue' => (int) (clone $offlineOrders)->sum('seller_amount'),
+                'fill' => '#10b981',
+            ],
+        ];
     }
 
     /**
@@ -173,29 +231,89 @@ class SellerDashboardController extends Controller
                 'value' => (int) ($counts[OrderItemStatus::Sent->value] ?? 0),
                 'fill' => 'var(--color-sent)',
             ],
+            [
+                'status' => 'completed',
+                'label' => OrderItemStatus::Completed->label(),
+                'value' => (int) ($counts[OrderItemStatus::Completed->value] ?? 0),
+                'fill' => 'var(--color-completed)',
+            ],
         ];
     }
 
     /**
-     * @return array<int, array{id: int, order_id: int, buyer: string, product: string, amount: string, status: string, time: string}>
+     * @return array<int, array{id: int, source: string, code: string, order_id: int|string, buyer: string, product: string, amount: string, status: string, time: string, meta: string|null, gross_amount: string|null, commission_amount: string|null}>
      */
     private function latestOrders(User $seller): array
     {
-        return OrderItem::query()
-            ->with(['order.user:id,name', 'product:id,seller_id'])
+        $onlineOrders = OrderItem::query()
+            ->with(['order:id,code,user_id', 'order.user:id,name', 'product:id,seller_id'])
             ->whereHas('product', fn ($q) => $q->where('seller_id', $seller->id))
             ->latest('order_items.created_at')
             ->limit(5)
             ->get()
             ->map(fn (OrderItem $item): array => [
                 'id' => $item->id,
+                'source' => 'online',
+                'code' => $item->order->code ?? "TRX-{$item->order_id}",
                 'order_id' => $item->order_id,
                 'buyer' => $item->order->user->name,
                 'product' => $item->product_name,
                 'amount' => 'Rp '.number_format($item->subtotal, 0, ',', '.'),
+                'meta' => null,
+                'gross_amount' => null,
+                'commission_amount' => null,
                 'status' => $item->status->value,
                 'time' => $item->created_at?->translatedFormat('d M, H:i') ?? '',
+                'created_at' => $item->created_at->timestamp,
+            ]);
+
+        $offlineOrders = UpJurusanStockMovement::query()
+            ->with([
+                'user:id,name',
+                'consignment.product:id,name',
+                'consignment.upJurusan:id,name',
+                'posSale:id,code',
             ])
+            ->where('type', 'out')
+            ->whereHas('consignment', fn ($q) => $q->where('seller_id', $seller->id))
+            ->latest()
+            ->limit(5)
+            ->get()
+            ->map(fn (UpJurusanStockMovement $movement): array => [
+                'id' => $movement->id,
+                'source' => 'offline',
+                'code' => $movement->posSale->code ?? "TRX-OFF-{$movement->id}",
+                'order_id' => $movement->posSale->code ?? $movement->id,
+                'buyer' => 'Pembeli offline',
+                'product' => $movement->consignment->product->name,
+                'amount' => 'Rp '.number_format($movement->seller_amount, 0, ',', '.'),
+                'meta' => $movement->consignment->upJurusan->name.' • '.$movement->user->name,
+                'gross_amount' => 'Rp '.number_format($movement->gross_amount, 0, ',', '.'),
+                'commission_amount' => 'Rp '.number_format($movement->commission_amount, 0, ',', '.'),
+                'status' => OrderItemStatus::Sent->value,
+                'time' => $movement->created_at?->translatedFormat('d M, H:i') ?? '',
+                'created_at' => $movement->created_at->timestamp,
+            ]);
+
+        return collect($onlineOrders->all())
+            ->merge($offlineOrders)
+            ->sortByDesc('created_at')
+            ->take(5)
+            ->map(fn (array $item): array => [
+                'id' => $item['id'],
+                'source' => $item['source'],
+                'code' => $item['code'],
+                'order_id' => $item['order_id'],
+                'buyer' => $item['buyer'],
+                'product' => $item['product'],
+                'amount' => $item['amount'],
+                'meta' => $item['meta'],
+                'gross_amount' => $item['gross_amount'],
+                'commission_amount' => $item['commission_amount'],
+                'status' => $item['status'],
+                'time' => $item['time'],
+            ])
+            ->values()
             ->all();
     }
 
@@ -237,19 +355,25 @@ class SellerDashboardController extends Controller
     private function stockAlerts(User $seller): array
     {
         return Product::query()
+            ->select('products.*')
+            ->selectRaw(Product::REAL_STOCK_SQL.' as real_stock')
             ->where('seller_id', $seller->id)
-            ->where('stock', '<=', Product::LOW_STOCK_THRESHOLD)
-            ->orderBy('stock')
+            ->whereRaw(Product::REAL_STOCK_SQL.' <= ?', [Product::LOW_STOCK_THRESHOLD])
+            ->orderByRaw(Product::REAL_STOCK_SQL)
             ->orderBy('id')
             ->limit(5)
             ->get()
-            ->map(fn (Product $product): array => [
-                'product' => $product->name,
-                'sku' => '#'.$product->id,
-                'stock' => (string) $product->stock,
-                'tone' => $product->stock === 0 ? 'danger' : 'warning',
-                'icon' => 'package',
-            ])
+            ->map(function (Product $product): array {
+                $realStock = (int) $product->getAttribute('real_stock');
+
+                return [
+                    'product' => $product->name,
+                    'sku' => '#'.$product->id,
+                    'stock' => (string) $realStock,
+                    'tone' => $realStock === 0 ? 'danger' : 'warning',
+                    'icon' => 'package',
+                ];
+            })
             ->all();
     }
 

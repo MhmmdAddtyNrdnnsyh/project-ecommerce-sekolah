@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\ProductFulfillmentType;
 use App\Enums\ProductSalesMethod;
 use App\Enums\ProductStatus;
 use App\Enums\UserRole;
@@ -34,6 +35,11 @@ class ProductFactory extends Factory
             'price' => fake()->numberBetween(5_000, 250_000),
             'stock' => fake()->numberBetween(0, 50),
             'sales_method' => ProductSalesMethod::SelfManaged,
+            'fulfillment_type' => ProductFulfillmentType::ReadyStock,
+            'pre_order_estimate_days' => null,
+            'pre_order_deadline' => null,
+            'pre_order_min_quantity' => null,
+            'pre_order_note' => null,
             'status' => fake()->randomElement(ProductStatus::cases()),
             'image' => null,
         ];
@@ -43,6 +49,18 @@ class ProductFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'status' => ProductStatus::Approved,
+        ]);
+    }
+
+    public function preOrder(int $estimateDays = 7): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'fulfillment_type' => ProductFulfillmentType::PreOrder,
+            'pre_order_estimate_days' => $estimateDays,
+            'pre_order_deadline' => null,
+            'pre_order_min_quantity' => null,
+            'pre_order_note' => 'Diproduksi setelah pesanan masuk.',
+            'stock' => 0,
         ]);
     }
 }

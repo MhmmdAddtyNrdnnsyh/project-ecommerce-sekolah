@@ -26,6 +26,15 @@ type CatalogProduct = {
     description: string;
     price: number;
     stock: number;
+    is_pre_order: boolean;
+    fulfillment_type: {
+        code: 'ready_stock' | 'pre_order';
+        label: string;
+    };
+    pre_order_estimate_days: number | null;
+    pre_order_deadline: string | null;
+    pre_order_min_quantity: number | null;
+    pre_order_note: string | null;
     image: string | null;
     seller: {
         id: number;
@@ -131,8 +140,8 @@ export default function CatalogIndex({
                                 }
                                 className={
                                     filters.category === ''
-                                        ? 'h-10 shrink-0 rounded-full bg-[#0080FF] px-4 hover:bg-[#006FE0]'
-                                        : 'h-10 shrink-0 rounded-full border-slate-200 bg-white px-4 text-slate-700 hover:bg-slate-50'
+                                        ? 'h-10 shrink-0 px-4'
+                                        : 'h-10 shrink-0 border-slate-200 bg-white px-4 text-slate-700 hover:bg-slate-50'
                                 }
                             >
                                 <Link
@@ -156,8 +165,8 @@ export default function CatalogIndex({
                                     }
                                     className={
                                         filters.category === category.slug
-                                            ? 'h-10 shrink-0 rounded-full bg-[#0080FF] px-4 hover:bg-[#006FE0]'
-                                            : 'h-10 shrink-0 rounded-full border-slate-200 bg-white px-4 text-slate-700 hover:bg-slate-50'
+                                            ? 'h-10 shrink-0 px-4'
+                                            : 'h-10 shrink-0 border-slate-200 bg-white px-4 text-slate-700 hover:bg-slate-50'
                                     }
                                 >
                                     <Link
@@ -238,7 +247,9 @@ export default function CatalogIndex({
                                                         {product.category.name}
                                                     </Badge>
                                                     <Badge className="rounded-full bg-emerald-50 text-emerald-700">
-                                                        Stok {product.stock}
+                                                        {product.is_pre_order
+                                                            ? `PO ${product.pre_order_estimate_days} hari`
+                                                            : `Stok ${product.stock}`}
                                                     </Badge>
                                                 </div>
                                                 <CardTitle className="line-clamp-2 text-sm leading-5 font-semibold text-slate-950 sm:text-base sm:leading-6">

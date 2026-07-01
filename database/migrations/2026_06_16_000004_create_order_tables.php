@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\OrderItemStatus;
 use App\Enums\OrderStatus;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
@@ -17,6 +18,8 @@ return new class extends Migration
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
             $table->enum('status', OrderStatus::values())->default(OrderStatus::Pending->value)->index();
             $table->unsignedBigInteger('total_price')->default(0);
+            $table->string('pickup_method')->default('pickup');
+            $table->string('pickup_location')->nullable();
             $table->timestamps();
         });
 
@@ -28,6 +31,7 @@ return new class extends Migration
             $table->unsignedBigInteger('price');
             $table->unsignedInteger('quantity');
             $table->unsignedBigInteger('subtotal');
+            $table->enum('status', OrderItemStatus::values())->default(OrderItemStatus::Pending->value)->index();
             $table->timestamps();
         });
     }

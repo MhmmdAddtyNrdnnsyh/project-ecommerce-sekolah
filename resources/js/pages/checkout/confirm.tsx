@@ -1,4 +1,4 @@
-import { Form, Head, Link, usePage } from '@inertiajs/react';
+import { Form, Head, Link, router, usePage } from '@inertiajs/react';
 import {
     ArrowLeft,
     CreditCard,
@@ -9,8 +9,18 @@ import {
     Truck,
     User,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import InputError from '@/components/input-error';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -33,6 +43,11 @@ type CheckoutItem = {
         slug: string;
         price: number;
         stock: number;
+        is_pre_order: boolean;
+        pre_order_estimate_days: number | null;
+        pre_order_deadline: string | null;
+        pre_order_min_quantity: number | null;
+        pre_order_note: string | null;
         image: string | null;
         seller: {
             id: number;
@@ -84,29 +99,82 @@ export default function CheckoutConfirm({ items, summary }: Props) {
     const [pickupMethod, setPickupMethod] = useState<'pickup' | 'delivery'>(
         'pickup',
     );
+    const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
+    const [pendingLeaveUrl, setPendingLeaveUrl] = useState<string | null>(null);
+    const allowNavigationRef = useRef(false);
+    const checkoutSubmittingRef = useRef(false);
     const buyer = auth.user;
     const hasInvalidStock = items.some(
-        (item) => item.product.stock <= 0 || item.quantity > item.product.stock,
+        (item) =>
+            !item.product.is_pre_order &&
+            (item.product.stock <= 0 || item.quantity > item.product.stock),
     );
-    const confirmLeave = () =>
-        window.confirm(
-            'Keluar dari konfirmasi pembayaran? Pesanan belum dibuat.',
-        );
+    const hasPendingCheckout = items.length > 0;
 
     useEffect(() => {
-        if (items.length === 0) {
+        if (!hasPendingCheckout) {
             return;
         }
 
         const warnBeforeLeave = (event: BeforeUnloadEvent) => {
+            if (checkoutSubmittingRef.current) {
+                return;
+            }
+
             event.preventDefault();
             event.returnValue = '';
         };
 
         window.addEventListener('beforeunload', warnBeforeLeave);
 
-        return () => window.removeEventListener('beforeunload', warnBeforeLeave);
-    }, [items.length]);
+        return () =>
+            window.removeEventListener('beforeunload', warnBeforeLeave);
+    }, [hasPendingCheckout]);
+
+    useEffect(() => {
+        if (!hasPendingCheckout) {
+            return;
+        }
+
+        return router.on('before', (event) => {
+            if (allowNavigationRef.current || checkoutSubmittingRef.current) {
+                return;
+            }
+
+            if (event.detail.visit.method !== 'get') {
+                return;
+            }
+
+            if (event.detail.visit.prefetch) {
+                return;
+            }
+
+            event.preventDefault();
+            setPendingLeaveUrl(event.detail.visit.url.href);
+            setLeaveDialogOpen(true);
+        });
+    }, [hasPendingCheckout]);
+
+    useEffect(() => {
+        return router.on('finish', () => {
+            checkoutSubmittingRef.current = false;
+        });
+    }, []);
+
+    const continuePendingNavigation = () => {
+        if (!pendingLeaveUrl) {
+            setLeaveDialogOpen(false);
+
+            return;
+        }
+
+        allowNavigationRef.current = true;
+        setLeaveDialogOpen(false);
+        router.visit(pendingLeaveUrl);
+        window.setTimeout(() => {
+            allowNavigationRef.current = false;
+        }, 0);
+    };
 
     return (
         <>
@@ -132,17 +200,7 @@ export default function CheckoutConfirm({ items, summary }: Props) {
                                 variant="outline"
                                 className="h-10 w-fit rounded-full border-slate-200 bg-white"
                             >
-                                <Link
-                                    href={cartIndex()}
-                                    onClick={(event) => {
-                                        if (
-                                            items.length > 0 &&
-                                            !confirmLeave()
-                                        ) {
-                                            event.preventDefault();
-                                        }
-                                    }}
-                                >
+                                <Link href={cartIndex()}>
                                     <ArrowLeft className="size-4" />
                                     Cart
                                 </Link>
@@ -188,10 +246,7 @@ export default function CheckoutConfirm({ items, summary }: Props) {
                                     Tambahkan produk dulu sebelum konfirmasi
                                     pembayaran.
                                 </p>
-                                <Button
-                                    asChild
-                                    className="mt-5 h-10 rounded-full bg-[#0080FF] hover:bg-[#006FE0]"
-                                >
+                                <Button asChild className="mt-5 h-10">
                                     <Link href={home()}>Lihat produk</Link>
                                 </Button>
                             </div>
@@ -200,8 +255,10 @@ export default function CheckoutConfirm({ items, summary }: Props) {
                                 {items.map((item) => {
                                     const src = imageSource(item.product.image);
                                     const stockIssue =
-                                        item.product.stock <= 0 ||
-                                        item.quantity > item.product.stock;
+                                        !item.product.is_pre_order &&
+                                        (item.product.stock <= 0 ||
+                                            item.quantity >
+                                                item.product.stock);
 
                                     return (
                                         <Link
@@ -248,6 +305,9 @@ export default function CheckoutConfirm({ items, summary }: Props) {
                                                         }`}
                                                     >
                                                         {item.quantity} item
+                                                        {item.product
+                                                            .is_pre_order &&
+                                                            ` • PO ${item.product.pre_order_estimate_days} hari`}
                                                     </span>
                                                     <span className="font-semibold text-slate-950">
                                                         {formatRupiah(
@@ -284,7 +344,13 @@ export default function CheckoutConfirm({ items, summary }: Props) {
                                     {formatRupiah(summary.total_price)}
                                 </span>
                             </div>
-                            <Form {...checkout.form()} disableWhileProcessing>
+                            <Form
+                                {...checkout.form()}
+                                disableWhileProcessing
+                                onSubmit={() => {
+                                    checkoutSubmittingRef.current = true;
+                                }}
+                            >
                                 {({ processing, errors }) => (
                                     <div className="space-y-5">
                                         {items.map((item) => (
@@ -415,6 +481,43 @@ export default function CheckoutConfirm({ items, summary }: Props) {
                                             )}
                                         </div>
 
+                                        <div className="space-y-3">
+                                            <div>
+                                                <h2 className="text-sm font-semibold text-slate-800">
+                                                    Metode pembayaran
+                                                </h2>
+                                                <p className="mt-1 text-xs text-slate-500">
+                                                    Untuk MVP saat ini, metode
+                                                    pembayaran hanya tunai.
+                                                </p>
+                                            </div>
+                                            <input
+                                                type="hidden"
+                                                name="payment_method"
+                                                value="cash"
+                                                readOnly
+                                            />
+                                            <div className="flex items-start gap-3 rounded-[8px] border border-blue-200 bg-blue-50 p-3">
+                                                <CreditCard className="mt-0.5 size-4 shrink-0 text-blue-700" />
+                                                <div>
+                                                    <p className="text-sm font-semibold text-slate-950">
+                                                        Tunai
+                                                    </p>
+                                                    <p className="mt-1 text-xs leading-5 text-slate-500">
+                                                        Bayar langsung saat
+                                                        mengambil atau menerima
+                                                        pesanan. Admin dapat
+                                                        menandai pembayaran
+                                                        sebagai lunas setelah
+                                                        diterima.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <InputError
+                                                message={errors.payment_method}
+                                            />
+                                        </div>
+
                                         <Button
                                             type="submit"
                                             disabled={
@@ -422,7 +525,7 @@ export default function CheckoutConfirm({ items, summary }: Props) {
                                                 items.length === 0 ||
                                                 hasInvalidStock
                                             }
-                                            className="h-11 w-full rounded-full bg-[#0080FF] hover:bg-[#006FE0]"
+                                            className="h-11 w-full"
                                         >
                                             {processing && <Spinner />}
                                             Bayar sekarang
@@ -441,6 +544,49 @@ export default function CheckoutConfirm({ items, summary }: Props) {
                     </Card>
                 </div>
             </main>
+            <AlertDialog
+                open={leaveDialogOpen}
+                onOpenChange={(open) => {
+                    setLeaveDialogOpen(open);
+
+                    if (!open) {
+                        setPendingLeaveUrl(null);
+                    }
+                }}
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>
+                            Tinggalkan konfirmasi pembayaran?
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Pesanan belum dibuat. Jika keluar dari halaman ini,
+                            buyer perlu membuka checkout lagi dari cart atau
+                            produk.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel asChild>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                className="rounded-[8px]"
+                            >
+                                Tetap di halaman
+                            </Button>
+                        </AlertDialogCancel>
+                        <AlertDialogAction asChild>
+                            <Button
+                                type="button"
+                                className="rounded-[8px] bg-rose-600 text-white hover:bg-rose-700"
+                                onClick={continuePendingNavigation}
+                            >
+                                Tinggalkan
+                            </Button>
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </>
     );
 }

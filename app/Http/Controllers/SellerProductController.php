@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\ProductFulfillmentType;
 use App\Enums\ProductSalesMethod;
 use App\Enums\ProductStatus;
 use App\Enums\UpJurusanConsignmentStatus;
@@ -39,6 +40,8 @@ class SellerProductController extends Controller
         ]);
 
         $query = Product::query()
+            ->select('products.*')
+            ->selectRaw(Product::REAL_STOCK_SQL.' as real_stock')
             ->with('category:id,name,slug')
             ->where('seller_id', $seller->id);
 
@@ -59,8 +62,10 @@ class SellerProductController extends Controller
 
         if ($stock = $validated['stock'] ?? null) {
             match ($stock) {
-                'out' => $query->where('stock', 0),
-                'low' => $query->where('stock', '>', 0)->where('stock', '<=', Product::LOW_STOCK_THRESHOLD),
+                'out' => $query->whereRaw(Product::REAL_STOCK_SQL.' = 0'),
+                'low' => $query
+                    ->whereRaw(Product::REAL_STOCK_SQL.' > 0')
+                    ->whereRaw(Product::REAL_STOCK_SQL.' <= ?', [Product::LOW_STOCK_THRESHOLD]),
                 default => null,
             };
         }
@@ -80,7 +85,15 @@ class SellerProductController extends Controller
                     'slug' => $product->category->slug,
                 ],
                 'price' => $product->price,
-                'stock' => $product->stock,
+                'stock' => (int) $product->getAttribute('real_stock'),
+                'is_pre_order' => $product->isPreOrder(),
+                'fulfillment_type' => [
+                    'code' => $product->fulfillment_type->value,
+                    'label' => $product->fulfillment_type->label(),
+                ],
+                'pre_order_estimate_days' => $product->pre_order_estimate_days,
+                'pre_order_deadline' => $product->pre_order_deadline?->toDateString(),
+                'pre_order_min_quantity' => $product->pre_order_min_quantity,
                 'status' => [
                     'code' => $product->status->value,
                     'label' => $product->status->label(),
@@ -119,9 +132,14 @@ class SellerProductController extends Controller
         $salesMethod = ProductSalesMethod::from(
             $request->input('sales_method', ProductSalesMethod::SelfManaged->value),
         );
-        $status = ProductStatus::from($request->input('status', ProductStatus::Pending->value));
+        $fulfillmentType = ProductFulfillmentType::from(
+            $request->input('fulfillment_type', ProductFulfillmentType::ReadyStock->value),
+        );
+        $requestedStatus = $salesMethod === ProductSalesMethod::UpJurusan
+            ? ProductStatus::Pending
+            : ProductStatus::from($request->input('status', ProductStatus::Pending->value));
 
-        DB::transaction(function () use ($request, $seller, $imagePath, $salesMethod, $status) {
+        DB::transaction(function () use ($request, $seller, $imagePath, $salesMethod, $fulfillmentType, $requestedStatus) {
             $product = Product::query()->create([
                 'seller_id' => $seller->id,
                 'category_id' => $request->integer('category_id'),
@@ -131,11 +149,28 @@ class SellerProductController extends Controller
                 'price' => $request->integer('price'),
                 'stock' => $salesMethod === ProductSalesMethod::UpJurusan ? 0 : $request->integer('stock'),
                 'sales_method' => $salesMethod,
-                'status' => $status,
+                'fulfillment_type' => $fulfillmentType,
+                'pre_order_estimate_days' => $fulfillmentType === ProductFulfillmentType::PreOrder
+                    ? $request->integer('pre_order_estimate_days')
+                    : null,
+                'pre_order_deadline' => $fulfillmentType === ProductFulfillmentType::PreOrder
+                    ? $request->date('pre_order_deadline')?->toDateString()
+                    : null,
+                'pre_order_min_quantity' => $fulfillmentType === ProductFulfillmentType::PreOrder
+                    ? $request->integer('pre_order_min_quantity') ?: null
+                    : null,
+                'pre_order_note' => $fulfillmentType === ProductFulfillmentType::PreOrder
+                    ? $request->string('pre_order_note')->trim()->toString() ?: null
+                    : null,
+                'status' => $requestedStatus,
                 'image' => $imagePath,
             ]);
 
-            if ($salesMethod === ProductSalesMethod::UpJurusan && $status === ProductStatus::Pending) {
+            if (
+                $salesMethod === ProductSalesMethod::UpJurusan
+                && $fulfillmentType === ProductFulfillmentType::ReadyStock
+                && $requestedStatus === ProductStatus::Pending
+            ) {
                 UpJurusanConsignment::query()->create([
                     'seller_id' => $seller->id,
                     'product_id' => $product->id,
@@ -163,6 +198,14 @@ class SellerProductController extends Controller
                 'description' => $product->description,
                 'price' => $product->price,
                 'stock' => $product->stock,
+                'fulfillment_type' => [
+                    'code' => $product->fulfillment_type->value,
+                    'label' => $product->fulfillment_type->label(),
+                ],
+                'pre_order_estimate_days' => $product->pre_order_estimate_days,
+                'pre_order_deadline' => $product->pre_order_deadline?->toDateString(),
+                'pre_order_min_quantity' => $product->pre_order_min_quantity,
+                'pre_order_note' => $product->pre_order_note,
                 'image' => $product->image,
                 'status' => [
                     'code' => $product->status->value,
@@ -176,6 +219,7 @@ class SellerProductController extends Controller
     public function update(UpdateProductRequest $request, Product $product): RedirectResponse
     {
         $this->authorizeOwner($request, $product);
+        $oldImagePath = $product->image;
         $imagePath = $product->image;
         $image = $request->file('image');
 
@@ -184,19 +228,53 @@ class SellerProductController extends Controller
             $imagePath = $storedImage === false ? $imagePath : $storedImage;
         }
 
+        $requestedStatus = ProductStatus::from(
+            $request->input('status', $product->status->value),
+        );
+
         $product->update([
             'category_id' => $request->integer('category_id'),
             'name' => $request->string('name')->toString(),
             'slug' => $this->uniqueSlug($request->string('name')->toString(), $product),
             'description' => $request->string('description')->toString(),
             'price' => $request->integer('price'),
-            'status' => $product->status === ProductStatus::Approved
-                ? ProductStatus::Pending
-                : $product->status,
+            'fulfillment_type' => ProductFulfillmentType::from($request->input('fulfillment_type', ProductFulfillmentType::ReadyStock->value)),
+            'pre_order_estimate_days' => $request->input('fulfillment_type', ProductFulfillmentType::ReadyStock->value) === ProductFulfillmentType::PreOrder->value
+                ? $request->integer('pre_order_estimate_days')
+                : null,
+            'pre_order_deadline' => $request->input('fulfillment_type', ProductFulfillmentType::ReadyStock->value) === ProductFulfillmentType::PreOrder->value
+                ? $request->date('pre_order_deadline')?->toDateString()
+                : null,
+            'pre_order_min_quantity' => $request->input('fulfillment_type', ProductFulfillmentType::ReadyStock->value) === ProductFulfillmentType::PreOrder->value
+                ? $request->integer('pre_order_min_quantity') ?: null
+                : null,
+            'pre_order_note' => $request->input('fulfillment_type', ProductFulfillmentType::ReadyStock->value) === ProductFulfillmentType::PreOrder->value
+                ? $request->string('pre_order_note')->trim()->toString() ?: null
+                : null,
+            'status' => $this->nextStatusAfterSellerUpdate($product, $requestedStatus),
             'image' => $imagePath,
         ]);
 
+        if ($oldImagePath && $imagePath !== $oldImagePath) {
+            Storage::disk('public')->delete($oldImagePath);
+        }
+
         return to_route('seller.products.index');
+    }
+
+    private function nextStatusAfterSellerUpdate(Product $product, ProductStatus $requestedStatus): ProductStatus
+    {
+        if ($product->status === ProductStatus::Draft) {
+            return $requestedStatus === ProductStatus::Pending
+                ? ProductStatus::Pending
+                : ProductStatus::Draft;
+        }
+
+        if ($product->status === ProductStatus::Approved && $product->sales_method === ProductSalesMethod::SelfManaged) {
+            return ProductStatus::Pending;
+        }
+
+        return $product->status;
     }
 
     public function destroy(Request $request, Product $product): RedirectResponse

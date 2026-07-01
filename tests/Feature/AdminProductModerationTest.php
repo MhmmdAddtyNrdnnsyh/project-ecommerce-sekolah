@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\ProductSalesMethod;
 use App\Enums\ProductStatus;
 use App\Enums\UserRole;
 use App\Models\Category;
@@ -37,6 +38,15 @@ test('admin can see pending products for moderation', function () {
             'name' => 'Produk Rejected',
             'slug' => 'produk-rejected',
             'status' => ProductStatus::Rejected,
+        ]);
+    Product::factory()
+        ->for($seller, 'seller')
+        ->for($category)
+        ->create([
+            'name' => 'Produk Titip UP',
+            'slug' => 'produk-titip-up',
+            'status' => ProductStatus::Pending,
+            'sales_method' => ProductSalesMethod::UpJurusan,
         ]);
 
     $this->actingAs($admin);
@@ -147,6 +157,19 @@ test('admin can reject a pending product with an optional reason', function () {
         'status' => ProductStatus::Rejected->value,
         'rejection_reason' => null,
     ]);
+});
+
+test('admin cannot moderate up jurusan consignment products', function () {
+    $admin = User::factory()->create(['role' => UserRole::Admin]);
+    $product = Product::factory()->create([
+        'status' => ProductStatus::Pending,
+        'sales_method' => ProductSalesMethod::UpJurusan,
+    ]);
+
+    $this->actingAs($admin);
+
+    $this->post(route('admin.products.moderation.approve', $product))->assertNotFound();
+    $this->post(route('admin.products.moderation.reject', $product))->assertNotFound();
 });
 
 test('non admin users cannot access product moderation endpoints', function (UserRole $role) {

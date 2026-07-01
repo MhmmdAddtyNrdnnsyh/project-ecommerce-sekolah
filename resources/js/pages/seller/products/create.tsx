@@ -2,6 +2,7 @@ import { Form, Head, Link } from '@inertiajs/react';
 import {
     ArrowLeft,
     CircleDollarSign,
+    Clock3,
     ImagePlus,
     PackagePlus,
     Save,
@@ -73,6 +74,7 @@ export default function SellerProductCreate({
 }: SellerProductCreateProps) {
     const [categoryId, setCategoryId] = useState('');
     const [salesMethod, setSalesMethod] = useState('self_managed');
+    const [fulfillmentType, setFulfillmentType] = useState('ready_stock');
     const [status, setStatus] = useState('pending');
     const [upJurusanId, setUpJurusanId] = useState('');
 
@@ -91,8 +93,8 @@ export default function SellerProductCreate({
                                 Tambah Produk
                             </h1>
                             <p className="mt-1 max-w-2xl text-sm text-slate-500">
-                                Produk baru akan masuk antrean review dengan
-                                status pending.
+                                Jual mandiri direview super admin, titip barang
+                                direview admin jurusan.
                             </p>
                         </div>
                         <Button
@@ -284,52 +286,126 @@ export default function SellerProductCreate({
                                             />
                                         </div>
 
-                                        <div className={fieldClassName}>
-                                            <Label
-                                                htmlFor="status"
-                                                className={labelClassName}
-                                            >
-                                                Status Produk
-                                            </Label>
-                                            <Select
-                                                name="status"
-                                                value={status}
-                                                onValueChange={setStatus}
-                                                required
-                                            >
-                                                <SelectTrigger
-                                                    id="status"
-                                                    className={
-                                                        selectTriggerClassName
-                                                    }
-                                                    aria-invalid={Boolean(
-                                                        errors.status,
-                                                    )}
+                                        {salesMethod === 'up_jurusan' ? (
+                                            <div className={fieldClassName}>
+                                                <Label
+                                                    htmlFor="status-note"
+                                                    className={labelClassName}
                                                 >
-                                                    <SelectValue placeholder="Pilih status produk" />
-                                                </SelectTrigger>
-                                                <SelectContent
-                                                    style={selectPortalTheme}
+                                                    Status Produk
+                                                </Label>
+                                                <div
+                                                    id="status-note"
+                                                    className="rounded-[8px] border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-700"
                                                 >
-                                                    <SelectGroup>
-                                                        <SelectLabel>
-                                                            Status Produk
-                                                        </SelectLabel>
-                                                        <SelectItem value="pending">
-                                                            Ajukan Review
-                                                        </SelectItem>
-                                                        <SelectItem value="draft">
-                                                            Simpan Draft
-                                                        </SelectItem>
-                                                    </SelectGroup>
-                                                </SelectContent>
-                                            </Select>
-                                            <InputError
-                                                message={errors.status}
-                                            />
-                                        </div>
+                                                    Status otomatis diajukan ke
+                                                    admin jurusan. Seller tidak
+                                                    perlu mengatur draft atau
+                                                    review untuk produk titipan.
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className={fieldClassName}>
+                                                <Label
+                                                    htmlFor="status"
+                                                    className={labelClassName}
+                                                >
+                                                    Status Produk
+                                                </Label>
+                                                <Select
+                                                    name="status"
+                                                    value={status}
+                                                    onValueChange={setStatus}
+                                                    required
+                                                >
+                                                    <SelectTrigger
+                                                        id="status"
+                                                        className={
+                                                            selectTriggerClassName
+                                                        }
+                                                        aria-invalid={Boolean(
+                                                            errors.status,
+                                                        )}
+                                                    >
+                                                        <SelectValue placeholder="Pilih status produk" />
+                                                    </SelectTrigger>
+                                                    <SelectContent
+                                                        style={
+                                                            selectPortalTheme
+                                                        }
+                                                    >
+                                                        <SelectGroup>
+                                                            <SelectLabel>
+                                                                Status Produk
+                                                            </SelectLabel>
+                                                            <SelectItem value="pending">
+                                                                Ajukan Review
+                                                            </SelectItem>
+                                                            <SelectItem value="draft">
+                                                                Simpan Draft
+                                                            </SelectItem>
+                                                        </SelectGroup>
+                                                    </SelectContent>
+                                                </Select>
+                                                <InputError
+                                                    message={errors.status}
+                                                />
+                                            </div>
+                                        )}
 
                                         <div className="grid gap-5 md:grid-cols-2">
+                                            <div className={fieldClassName}>
+                                                <Label
+                                                    htmlFor="fulfillment_type"
+                                                    className={labelClassName}
+                                                >
+                                                    Sistem Pemesanan
+                                                </Label>
+                                                <Select
+                                                    name="fulfillment_type"
+                                                    value={fulfillmentType}
+                                                    onValueChange={
+                                                        setFulfillmentType
+                                                    }
+                                                    required
+                                                >
+                                                    <SelectTrigger
+                                                        id="fulfillment_type"
+                                                        className={
+                                                            selectTriggerClassName
+                                                        }
+                                                        aria-invalid={Boolean(
+                                                            errors.fulfillment_type,
+                                                        )}
+                                                    >
+                                                        <SelectValue placeholder="Pilih sistem pemesanan" />
+                                                    </SelectTrigger>
+                                                    <SelectContent
+                                                        style={
+                                                            selectPortalTheme
+                                                        }
+                                                    >
+                                                        <SelectGroup>
+                                                            <SelectLabel>
+                                                                Sistem
+                                                                Pemesanan
+                                                            </SelectLabel>
+                                                            <SelectItem value="ready_stock">
+                                                                Ready Stock
+                                                            </SelectItem>
+                                                            <SelectItem value="pre_order">
+                                                                Pre-Order
+                                                            </SelectItem>
+                                                        </SelectGroup>
+                                                    </SelectContent>
+                                                </Select>
+                                                <InputError
+                                                    message={
+                                                        errors.fulfillment_type
+                                                    }
+                                                />
+                                            </div>
+
                                             <div className={fieldClassName}>
                                                 <Label
                                                     htmlFor="price"
@@ -360,7 +436,9 @@ export default function SellerProductCreate({
                                                 />
                                             </div>
 
-                                            {salesMethod === 'self_managed' ? (
+                                            {salesMethod === 'self_managed' &&
+                                                fulfillmentType ===
+                                                    'ready_stock' && (
                                                 <div className={fieldClassName}>
                                                     <Label
                                                         htmlFor="stock"
@@ -391,7 +469,11 @@ export default function SellerProductCreate({
                                                         message={errors.stock}
                                                     />
                                                 </div>
-                                            ) : (
+                                            )}
+
+                                            {salesMethod === 'up_jurusan' &&
+                                                fulfillmentType ===
+                                                    'ready_stock' && (
                                                 <div className={fieldClassName}>
                                                     <Label
                                                         htmlFor="requested_quantity"
@@ -426,6 +508,129 @@ export default function SellerProductCreate({
                                                 </div>
                                             )}
                                         </div>
+
+                                        {fulfillmentType === 'pre_order' && (
+                                            <div className="grid gap-5 md:grid-cols-2">
+                                                <div className={fieldClassName}>
+                                                    <Label
+                                                        htmlFor="pre_order_estimate_days"
+                                                        className={
+                                                            labelClassName
+                                                        }
+                                                    >
+                                                        Estimasi PO
+                                                    </Label>
+                                                    <div className="relative">
+                                                        <Clock3 className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" />
+                                                        <Input
+                                                            id="pre_order_estimate_days"
+                                                            name="pre_order_estimate_days"
+                                                            type="number"
+                                                            required
+                                                            min={1}
+                                                            max={365}
+                                                            step={1}
+                                                            inputMode="numeric"
+                                                            placeholder="7"
+                                                            className={`${inputClassName} pl-9`}
+                                                            aria-invalid={Boolean(
+                                                                errors.pre_order_estimate_days,
+                                                            )}
+                                                        />
+                                                    </div>
+                                                    <InputError
+                                                        message={
+                                                            errors.pre_order_estimate_days
+                                                        }
+                                                    />
+                                                </div>
+
+                                                <div className={fieldClassName}>
+                                                    <Label
+                                                        htmlFor="pre_order_note"
+                                                        className={
+                                                            labelClassName
+                                                        }
+                                                    >
+                                                        Catatan PO
+                                                    </Label>
+                                                    <Input
+                                                        id="pre_order_note"
+                                                        name="pre_order_note"
+                                                        maxLength={255}
+                                                        placeholder="Contoh: Diproduksi setelah kuota pesanan terkumpul"
+                                                        className={
+                                                            inputClassName
+                                                        }
+                                                        aria-invalid={Boolean(
+                                                            errors.pre_order_note,
+                                                        )}
+                                                    />
+                                                    <InputError
+                                                        message={
+                                                            errors.pre_order_note
+                                                        }
+                                                    />
+                                                </div>
+                                                <div className={fieldClassName}>
+                                                    <Label
+                                                        htmlFor="pre_order_deadline"
+                                                        className={
+                                                            labelClassName
+                                                        }
+                                                    >
+                                                        Deadline PO
+                                                    </Label>
+                                                    <Input
+                                                        id="pre_order_deadline"
+                                                        name="pre_order_deadline"
+                                                        type="date"
+                                                        className={
+                                                            inputClassName
+                                                        }
+                                                        aria-invalid={Boolean(
+                                                            errors.pre_order_deadline,
+                                                        )}
+                                                    />
+                                                    <InputError
+                                                        message={
+                                                            errors.pre_order_deadline
+                                                        }
+                                                    />
+                                                </div>
+                                                <div className={fieldClassName}>
+                                                    <Label
+                                                        htmlFor="pre_order_min_quantity"
+                                                        className={
+                                                            labelClassName
+                                                        }
+                                                    >
+                                                        Minimum Kuota
+                                                    </Label>
+                                                    <Input
+                                                        id="pre_order_min_quantity"
+                                                        name="pre_order_min_quantity"
+                                                        type="number"
+                                                        min={1}
+                                                        max={100000}
+                                                        step={1}
+                                                        inputMode="numeric"
+                                                        placeholder="Opsional"
+                                                        className={
+                                                            inputClassName
+                                                        }
+                                                        aria-invalid={Boolean(
+                                                            errors.pre_order_min_quantity,
+                                                        )}
+                                                    />
+                                                    <InputError
+                                                        message={
+                                                            errors.pre_order_min_quantity
+                                                        }
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
 
                                         {salesMethod === 'up_jurusan' && (
                                             <div className={fieldClassName}>

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\PaymentStatus;
 use App\Enums\ProductStatus;
 use App\Enums\UserRole;
 use App\Models\Order;
@@ -18,7 +19,9 @@ class AdminDashboardController extends Controller
             'dashboard' => [
                 'stats' => $this->stats(),
                 'userGrowthData' => $this->userGrowthData(),
+                'orderTrendData' => $this->orderTrendData(),
                 'roleDistributionData' => $this->roleDistributionData(),
+                'productStatusData' => $this->productStatusData(),
                 'adminQueue' => $this->adminQueue(),
                 'platformHealth' => $this->platformHealth(),
                 'activities' => $this->activities(),
@@ -40,8 +43,10 @@ class AdminDashboardController extends Controller
         $approvedProducts = Product::query()
             ->where('status', ProductStatus::Approved)
             ->count();
-        $totalOrders = Order::query()->count();
-        $totalRevenue = (int) Order::query()->sum('total_price');
+        $trackedOrders = Order::query()
+            ->where('payment_status', '!=', PaymentStatus::Rejected->value);
+        $totalOrders = (clone $trackedOrders)->count();
+        $totalOrderValue = (int) (clone $trackedOrders)->sum('total_price');
 
         return [
             [
@@ -68,7 +73,7 @@ class AdminDashboardController extends Controller
             [
                 'label' => 'Transaksi',
                 'value' => $this->number($totalOrders),
-                'context' => 'Rp '.$this->number($totalRevenue).' omzet tercatat',
+                'context' => 'Rp '.$this->number($totalOrderValue).' nilai order online gross',
                 'tone' => 'rose',
                 'icon' => 'walletCards',
             ],
@@ -107,6 +112,33 @@ class AdminDashboardController extends Controller
     }
 
     /**
+     * @return array<int, array{month: string, orders: int, revenue: int}>
+     */
+    private function orderTrendData(): array
+    {
+        $start = now()->startOfMonth()->subMonths(7);
+
+        $totals = Order::query()
+            ->where('payment_status', '!=', PaymentStatus::Rejected->value)
+            ->where('created_at', '>=', $start)
+            ->get(['created_at', 'total_price'])
+            ->groupBy(fn (Order $order) => $order->created_at?->format('Y-n') ?? '');
+
+        return collect(range(0, 7))
+            ->map(function (int $offset) use ($start, $totals) {
+                $month = $start->copy()->addMonths($offset);
+                $items = $totals->get($month->format('Y-n'), collect());
+
+                return [
+                    'month' => $month->translatedFormat('M'),
+                    'orders' => $items->count(),
+                    'revenue' => (int) $items->sum('total_price'),
+                ];
+            })
+            ->all();
+    }
+
+    /**
      * @return array<int, array{role: string, label: string, value: int, fill: string}>
      */
     private function roleDistributionData(): array
@@ -120,6 +152,28 @@ class AdminDashboardController extends Controller
                 'value' => (int) round(($this->roleCount($role) / $totalUsers) * 100),
                 'fill' => 'var(--color-'.($role === UserRole::PicketOfficer ? 'picket' : $role->value).')',
             ])
+            ->all();
+    }
+
+    /**
+     * @return array<int, array{status: string, label: string, value: int, fill: string}>
+     */
+    private function productStatusData(): array
+    {
+        $counts = Product::query()
+            ->selectRaw('status, COUNT(*) as total')
+            ->groupBy('status')
+            ->pluck('total', 'status');
+
+        return collect(ProductStatus::cases())
+            ->map(fn (ProductStatus $status) => [
+                'status' => $status->value,
+                'label' => $status->label(),
+                'value' => (int) ($counts[$status->value] ?? 0),
+                'fill' => $this->productStatusColor($status),
+            ])
+            ->filter(fn (array $item) => $item['value'] > 0)
+            ->values()
             ->all();
     }
 
@@ -255,6 +309,16 @@ class AdminDashboardController extends Controller
             UserRole::Seller => 'emerald',
             UserRole::PicketOfficer => 'amber',
             UserRole::Buyer => 'blue',
+        };
+    }
+
+    private function productStatusColor(ProductStatus $status): string
+    {
+        return match ($status) {
+            ProductStatus::Draft => '#64748b',
+            ProductStatus::Pending => '#2563eb',
+            ProductStatus::Approved => '#10b981',
+            ProductStatus::Rejected => '#e11d48',
         };
     }
 }

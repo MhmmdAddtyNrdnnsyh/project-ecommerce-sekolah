@@ -54,6 +54,11 @@ type SellerProduct = {
     category: { id: number; name: string; slug: string };
     price: number;
     stock: number;
+    is_pre_order: boolean;
+    fulfillment_type: { code: 'ready_stock' | 'pre_order'; label: string };
+    pre_order_estimate_days: number | null;
+    pre_order_deadline: string | null;
+    pre_order_min_quantity: number | null;
     status: { code: ProductStatus; label: string };
 };
 
@@ -226,7 +231,9 @@ export default function SellerProductsIndex({
                                         </SelectTrigger>
                                         <SelectContent className="rounded-[8px] bg-white text-slate-900 ring-slate-200">
                                             <SelectGroup>
-                                                <SelectLabel>Status</SelectLabel>
+                                                <SelectLabel>
+                                                    Status
+                                                </SelectLabel>
                                                 <SelectItem value="all">
                                                     Semua status
                                                 </SelectItem>
@@ -371,7 +378,29 @@ export default function SellerProductsIndex({
                                         {products.data.map((product) => (
                                             <TableRow key={product.id}>
                                                 <TableCell className="min-w-56 px-5 font-medium">
-                                                    {product.name}
+                                                    <div>
+                                                        <p className="font-semibold text-slate-950">
+                                                            {product.name}
+                                                        </p>
+                                                        {product.is_pre_order && (
+                                                            <p className="mt-1 text-xs text-blue-700">
+                                                                PO{' '}
+                                                                {
+                                                                    product.pre_order_estimate_days
+                                                                }{' '}
+                                                                hari
+                                                            </p>
+                                                        )}
+                                                        {product.is_pre_order &&
+                                                            product.pre_order_deadline && (
+                                                                <p className="mt-1 text-xs text-slate-500">
+                                                                    Deadline{' '}
+                                                                    {
+                                                                        product.pre_order_deadline
+                                                                    }
+                                                                </p>
+                                                            )}
+                                                    </div>
                                                 </TableCell>
                                                 <TableCell className="px-5 text-slate-600">
                                                     {product.category.name}
@@ -382,7 +411,13 @@ export default function SellerProductsIndex({
                                                     )}
                                                 </TableCell>
                                                 <TableCell className="px-5">
-                                                    {product.stock}
+                                                    {product.is_pre_order ? (
+                                                        <Badge className="rounded-[6px] bg-blue-50 text-blue-700">
+                                                            Pre-Order
+                                                        </Badge>
+                                                    ) : (
+                                                        product.stock
+                                                    )}
                                                 </TableCell>
                                                 <TableCell className="px-5">
                                                     <Badge

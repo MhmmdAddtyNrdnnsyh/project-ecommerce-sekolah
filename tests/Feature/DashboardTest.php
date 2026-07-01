@@ -1,13 +1,17 @@
 <?php
 
 use App\Enums\OrderItemStatus;
+use App\Enums\PaymentStatus;
 use App\Enums\ProductStatus;
 use App\Enums\UserRole;
 use App\Models\Category;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
+use App\Models\UpJurusan;
+use App\Models\UpJurusanConsignment;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use Inertia\Testing\AssertableInertia as Assert;
 
 test('guests are redirected to the login page', function () {
@@ -57,6 +61,10 @@ test('admin dashboard uses real product and order data', function () {
         'status' => ProductStatus::Pending,
     ]);
     $order = Order::factory()->for($buyer)->create(['total_price' => 25_000]);
+    Order::factory()->for($buyer)->create([
+        'payment_status' => PaymentStatus::Rejected,
+        'total_price' => 99_000,
+    ]);
     OrderItem::factory()->for($order)->for($approvedProduct)->create([
         'subtotal' => 25_000,
     ]);
@@ -70,7 +78,7 @@ test('admin dashboard uses real product and order data', function () {
             ->where('dashboard.stats.2.context', '2 total produk')
             ->where('dashboard.stats.3.label', 'Transaksi')
             ->where('dashboard.stats.3.value', '1')
-            ->where('dashboard.stats.3.context', 'Rp 25.000 omzet tercatat')
+            ->where('dashboard.stats.3.context', 'Rp 25.000 nilai order online gross')
             ->where('dashboard.adminQueue.0.area', 'Moderasi produk')
             ->where('dashboard.adminQueue.0.owner', $seller->name),
         );
@@ -94,6 +102,61 @@ test('admin header notifications contain admin action items', function () {
             ->where('adminHeader.notifications.0.href', route('admin.products.moderation.index', absolute: false))
             ->has('adminHeader.notifications', 1)
             ->where('adminHeader.supportEmail', config('mail.from.address')),
+        );
+});
+
+test('header notifications can be dismissed per user', function () {
+    $admin = User::factory()->create(['role' => UserRole::Admin]);
+    $seller = User::factory()->create(['role' => UserRole::Seller]);
+    $category = Category::factory()->create();
+    $pendingProduct = Product::factory()->for($seller, 'seller')->for($category)->create([
+        'name' => 'Produk Bisa Dihapus',
+        'status' => ProductStatus::Pending,
+    ]);
+    $notificationKey = "admin-product-pending:{$pendingProduct->id}:{$pendingProduct->updated_at->getTimestamp()}";
+
+    $this->actingAs($admin)
+        ->delete(route('notifications.destroy'), ['key' => $notificationKey])
+        ->assertRedirect();
+
+    $this->assertDatabaseHas('notification_dismissals', [
+        'user_id' => $admin->id,
+        'key' => $notificationKey,
+    ]);
+
+    $this->actingAs($admin)
+        ->get(route('dashboard'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('adminHeader.notifications', []),
+        );
+});
+
+test('header notifications disappear when the task is completed elsewhere', function () {
+    $seller = User::factory()->create(['role' => UserRole::Seller]);
+    $buyer = User::factory()->create();
+    $category = Category::factory()->create();
+    $product = Product::factory()->for($seller, 'seller')->for($category)->approved()->create(['stock' => 20]);
+    $order = Order::factory()->for($buyer)->create();
+    $pendingItem = OrderItem::factory()->for($order)->for($product)->create([
+        'status' => OrderItemStatus::Pending,
+    ]);
+
+    $this->actingAs($seller)
+        ->get(route('seller.dashboard'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->has('sellerHeader.notifications', 1)
+            ->where('sellerHeader.notifications.0.type', 'order'),
+        );
+
+    $pendingItem->update(['status' => OrderItemStatus::Packed]);
+
+    $this->actingAs($seller)
+        ->get(route('seller.dashboard'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('sellerHeader.notifications', []),
         );
 });
 
@@ -157,7 +220,7 @@ test('seller users can visit the seller dashboard', function () {
             ->component('seller/dashboard')
             ->has('dashboard.stats', 4)
             ->has('dashboard.salesData', 7)
-            ->has('dashboard.orderMixData', 3)
+            ->has('dashboard.orderMixData', 4)
             ->where('dashboard.orders', [])
             ->where('dashboard.topProducts', [])
             ->where('dashboard.stockAlerts', [])
@@ -278,6 +341,7 @@ test('seller dashboard uses real data scoped to the current seller', function ()
             ->where('dashboard.orderMixData.0.value', 5)
             ->where('dashboard.orderMixData.1.value', 1)
             ->where('dashboard.orderMixData.2.value', 1)
+            ->where('dashboard.orderMixData.3.label', OrderItemStatus::Completed->label())
             ->has('dashboard.orders', 5)
             ->where('dashboard.orders.0.product', 'Buku Tulis')
             ->where('dashboard.topProducts.0.name', 'Pulpen Biru')
@@ -285,6 +349,68 @@ test('seller dashboard uses real data scoped to the current seller', function ()
             ->has('dashboard.stockAlerts', 5)
             ->where('dashboard.stockAlerts.0.product', 'Buku Tulis')
             ->where('dashboard.stockAlerts.4.product', 'Penghapus'),
+        );
+});
+
+test('seller dashboard includes offline up jurusan consignment sales', function () {
+    $this->travelTo('2026-06-21 12:00:00');
+
+    $seller = User::factory()->create(['role' => UserRole::Seller]);
+    $picket = User::factory()->create(['role' => UserRole::PicketOfficer]);
+    $category = Category::factory()->create();
+    $upJurusan = UpJurusan::factory()->create();
+    $product = Product::factory()
+        ->for($seller, 'seller')
+        ->for($category)
+        ->approved()
+        ->create(['name' => 'Keripik Titipan']);
+    $consignment = UpJurusanConsignment::factory()->create([
+        'seller_id' => $seller->id,
+        'product_id' => $product->id,
+        'up_jurusan_id' => $upJurusan->id,
+    ]);
+
+    $posSaleId = DB::table('up_jurusan_pos_sales')->insertGetId([
+        'up_jurusan_id' => $upJurusan->id,
+        'user_id' => $picket->id,
+        'code' => 'TRX-20260621100000-POS1',
+        'total_quantity' => 3,
+        'total_amount' => 30000,
+        'created_at' => '2026-06-21 10:00:00',
+        'updated_at' => '2026-06-21 10:00:00',
+    ]);
+
+    DB::table('up_jurusan_stock_movements')->insert([
+        'up_jurusan_consignment_id' => $consignment->id,
+        'product_id' => null,
+        'up_jurusan_pos_sale_id' => $posSaleId,
+        'user_id' => $picket->id,
+        'type' => 'out',
+        'quantity' => 3,
+        'unit_price' => 10000,
+        'gross_amount' => 30000,
+        'commission_amount' => 3000,
+        'seller_amount' => 27000,
+        'created_at' => '2026-06-21 10:00:00',
+        'updated_at' => '2026-06-21 10:00:00',
+    ]);
+
+    $this->actingAs($seller)
+        ->get(route('seller.dashboard'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('dashboard.stats.0.value', 'Rp 27.000')
+            ->where('dashboard.stats.1.value', '1')
+            ->where('dashboard.salesData.6.sales', 27000)
+            ->where('dashboard.salesData.6.orders', 1)
+            ->where('dashboard.orders.0.product', 'Keripik Titipan')
+            ->where('dashboard.orders.0.buyer', 'Pembeli offline')
+            ->where('dashboard.orders.0.source', 'offline')
+            ->where('dashboard.orders.0.code', 'TRX-20260621100000-POS1')
+            ->where('dashboard.orders.0.meta', $upJurusan->name.' • '.$picket->name)
+            ->where('dashboard.orders.0.amount', 'Rp 27.000')
+            ->where('dashboard.orders.0.gross_amount', 'Rp 30.000')
+            ->where('dashboard.orders.0.commission_amount', 'Rp 3.000'),
         );
 });
 

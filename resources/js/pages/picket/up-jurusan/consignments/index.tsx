@@ -1,9 +1,10 @@
-import { Form, Head } from '@inertiajs/react';
+import { Form, Head, usePage } from '@inertiajs/react';
 import {
     CreditCard,
     Minus,
     Package,
     Plus,
+    ReceiptText,
     Search,
     ShoppingCart,
     Store,
@@ -17,6 +18,7 @@ import { Input } from '@/components/ui/input';
 
 type PosProduct = {
     id: number;
+    source: 'consignment' | 'product';
     seller_name: string;
     product_name: string;
     price: number;
@@ -34,11 +36,6 @@ type CartItem = PosProduct & {
 };
 
 type Props = {
-    errors?: {
-        report?: string;
-        quantity?: string;
-        items?: string;
-    };
     up_jurusan: { id: number; name: string } | null;
     pos_products: PosProduct[];
     daily_report: {
@@ -57,11 +54,11 @@ const formatRupiah = (value: number) =>
     }).format(value);
 
 export default function PicketUpJurusanConsignments({
-    errors,
     up_jurusan,
     pos_products,
     daily_report,
 }: Props) {
+    const { flash } = usePage().props;
     const [query, setQuery] = useState('');
     const [cart, setCart] = useState<CartItem[]>([]);
     const filteredProducts = useMemo(() => {
@@ -90,15 +87,22 @@ export default function PicketUpJurusanConsignments({
         );
 
         setCart((items) => {
-            const exists = items.some((item) => item.id === product.id);
+            const exists = items.some(
+                (item) =>
+                    item.id === product.id && item.source === product.source,
+            );
 
             if (nextQuantity === 0) {
-                return items.filter((item) => item.id !== product.id);
+                return items.filter(
+                    (item) =>
+                        item.id !== product.id ||
+                        item.source !== product.source,
+                );
             }
 
             if (exists) {
                 return items.map((item) =>
-                    item.id === product.id
+                    item.id === product.id && item.source === product.source
                         ? { ...item, quantity: nextQuantity }
                         : item,
                 );
@@ -108,16 +112,18 @@ export default function PicketUpJurusanConsignments({
         });
     };
 
-    const quantityFor = (productId: number) =>
-        cart.find((item) => item.id === productId)?.quantity ?? 0;
+    const quantityFor = (product: PosProduct) =>
+        cart.find(
+            (item) => item.id === product.id && item.source === product.source,
+        )?.quantity ?? 0;
 
     return (
         <>
             <Head title="POS UP Jurusan" />
-            <main className="min-h-dvh bg-slate-100 p-3 text-slate-950 sm:p-5">
+            <main className="min-h-dvh bg-slate-50 p-4 text-slate-950 sm:p-6">
                 <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
                     <div className="space-y-4">
-                        <section className="rounded-[8px] border border-slate-200 bg-white p-4 shadow-sm">
+                        <section className="rounded-[8px] border border-slate-100 bg-white p-4 shadow-sm">
                             <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
                                 <div>
                                     <Badge className="mb-2 rounded-[6px] bg-blue-50 text-blue-700">
@@ -152,7 +158,32 @@ export default function PicketUpJurusanConsignments({
                             </div>
                         </section>
 
-                        <section className="rounded-[8px] border border-slate-200 bg-white p-4 shadow-sm">
+                        {(flash.success || flash.error) && (
+                            <div
+                                role="status"
+                                className={`flex flex-col gap-3 rounded-[8px] border px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between ${
+                                    flash.error
+                                        ? 'border-rose-200 bg-rose-50 text-rose-700'
+                                        : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                                }`}
+                            >
+                                <span>{flash.error || flash.success}</span>
+                                {flash.receipt_url && (
+                                    <Button
+                                        asChild
+                                        size="sm"
+                                        className="w-fit bg-emerald-600 hover:bg-emerald-700"
+                                    >
+                                        <a href={flash.receipt_url}>
+                                            <ReceiptText className="size-4" />
+                                            Lihat Nota
+                                        </a>
+                                    </Button>
+                                )}
+                            </div>
+                        )}
+
+                        <section className="rounded-[8px] border border-slate-100 bg-white p-4 shadow-sm">
                             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                                 <div>
                                     <h2 className="text-lg font-semibold">
@@ -163,17 +194,15 @@ export default function PicketUpJurusanConsignments({
                                     </p>
                                 </div>
                                 <label className="relative block md:w-80">
-                                    <span className="sr-only">
-                                        Cari produk
-                                    </span>
-                                    <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+                                    <span className="sr-only">Cari produk</span>
+                                    <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" />
                                     <Input
                                         value={query}
                                         onChange={(event) =>
                                             setQuery(event.target.value)
                                         }
                                         placeholder="Cari produk atau seller..."
-                                        className="h-10 rounded-[8px] border-slate-200 bg-white pl-9"
+                                        className="pl-9"
                                     />
                                 </label>
                             </div>
@@ -212,14 +241,12 @@ export default function PicketUpJurusanConsignments({
                             ) : (
                                 <div className="mt-4 grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
                                     {filteredProducts.map((product) => {
-                                        const quantity = quantityFor(
-                                            product.id,
-                                        );
+                                        const quantity = quantityFor(product);
 
                                         return (
                                             <article
-                                                key={product.id}
-                                                className="overflow-hidden rounded-[8px] border border-slate-200 bg-white shadow-sm"
+                                                key={`${product.source}:${product.id}`}
+                                                className="overflow-hidden rounded-[8px] border border-slate-100 bg-white shadow-sm"
                                             >
                                                 <div className="flex aspect-[5/3] items-center justify-center bg-slate-100 text-blue-700">
                                                     <Package className="size-12" />
@@ -278,7 +305,7 @@ export default function PicketUpJurusanConsignments({
                                                             quantity || 1,
                                                         )
                                                     }
-                                                    className="h-11 w-full rounded-none bg-blue-600 text-white hover:bg-blue-700"
+                                                    className="h-11 w-full rounded-none"
                                                 >
                                                     <ShoppingCart className="size-4" />
                                                     Tambah Cart
@@ -292,7 +319,7 @@ export default function PicketUpJurusanConsignments({
                     </div>
 
                     <aside className="xl:sticky xl:top-4 xl:h-fit">
-                        <section className="rounded-[8px] border border-slate-200 bg-white p-4 shadow-sm">
+                        <section className="rounded-[8px] border border-slate-100 bg-white p-4 shadow-sm">
                             <div className="flex items-center justify-between gap-3">
                                 <div>
                                     <h2 className="text-lg font-semibold">
@@ -307,7 +334,7 @@ export default function PicketUpJurusanConsignments({
                                         type="button"
                                         variant="ghost"
                                         onClick={() => setCart([])}
-                                        className="h-10 rounded-[8px] text-red-600 hover:bg-red-50 hover:text-red-700"
+                                        className="h-10 text-rose-600 hover:bg-rose-50 hover:text-rose-700"
                                     >
                                         <Trash2 className="size-4" />
                                         Clear
@@ -323,7 +350,7 @@ export default function PicketUpJurusanConsignments({
                                 ) : (
                                     cart.map((item) => (
                                         <div
-                                            key={item.id}
+                                            key={`${item.source}:${item.id}`}
                                             className="rounded-[8px] border border-slate-200 p-3"
                                         >
                                             <div className="flex justify-between gap-3">
@@ -341,7 +368,7 @@ export default function PicketUpJurusanConsignments({
                                                     onClick={() =>
                                                         setQuantity(item, 0)
                                                     }
-                                                    className="size-10 shrink-0 rounded-[8px] text-slate-500 hover:bg-red-50 hover:text-red-700"
+                                                    className="size-10 shrink-0 text-slate-500 hover:bg-rose-50 hover:text-rose-700"
                                                     aria-label={`Hapus ${item.product_name} dari cart`}
                                                 >
                                                     <Trash2 className="size-4" />
@@ -385,9 +412,7 @@ export default function PicketUpJurusanConsignments({
                                     </span>
                                 </div>
                                 <div className="mt-2 flex justify-between text-base">
-                                    <span className="font-semibold">
-                                        Total
-                                    </span>
+                                    <span className="font-semibold">Total</span>
                                     <span className="font-semibold">
                                         {formatRupiah(cartSubtotal)}
                                     </span>
@@ -403,11 +428,18 @@ export default function PicketUpJurusanConsignments({
                                 {({ processing, errors }) => (
                                     <>
                                         {cart.map((item, index) => (
-                                            <div key={item.id}>
+                                            <div
+                                                key={`${item.source}:${item.id}`}
+                                            >
                                                 <input
                                                     type="hidden"
                                                     name={`items[${index}][id]`}
                                                     value={item.id}
+                                                />
+                                                <input
+                                                    type="hidden"
+                                                    name={`items[${index}][source]`}
+                                                    value={item.source}
                                                 />
                                                 <input
                                                     type="hidden"
@@ -421,7 +453,7 @@ export default function PicketUpJurusanConsignments({
                                             disabled={
                                                 processing || cart.length === 0
                                             }
-                                            className="h-11 w-full rounded-[8px] bg-emerald-600 text-white hover:bg-emerald-700"
+                                            className="h-11 w-full bg-emerald-600 text-white hover:bg-emerald-700"
                                         >
                                             <CreditCard className="size-4" />
                                             Catat Penjualan
@@ -460,7 +492,7 @@ function Stepper({
                 variant="ghost"
                 onClick={onMinus}
                 disabled={value === 0}
-                className="size-10 rounded-[8px] text-slate-700"
+                className="size-10 text-slate-700"
                 aria-label="Kurangi jumlah"
             >
                 <Minus className="size-4" />
@@ -472,7 +504,7 @@ function Stepper({
                 type="button"
                 variant="ghost"
                 onClick={onPlus}
-                className="size-10 rounded-[8px] bg-blue-600 text-white hover:bg-blue-700"
+                className="size-10 bg-blue-600 text-white hover:bg-blue-700"
                 aria-label="Tambah jumlah"
             >
                 <Plus className="size-4" />
@@ -483,7 +515,7 @@ function Stepper({
 
 function Summary({ label, value }: { label: string; value: string | number }) {
     return (
-        <div className="rounded-[8px] border border-slate-200 bg-white px-4 py-3">
+        <div className="rounded-[8px] border border-slate-100 bg-white px-4 py-3">
             <p className="text-xs font-medium text-slate-500">{label}</p>
             <p className="mt-1 font-semibold">{value}</p>
         </div>

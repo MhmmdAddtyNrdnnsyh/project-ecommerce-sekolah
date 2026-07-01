@@ -2,9 +2,11 @@ import { Form, Head, Link } from '@inertiajs/react';
 import {
     ArrowLeft,
     CircleDollarSign,
+    Clock3,
     ImagePlus,
     PackageCheck,
     Save,
+    Send,
     Tags,
 } from 'lucide-react';
 import { useState } from 'react';
@@ -40,6 +42,7 @@ import {
 } from '@/routes/seller/products';
 
 type ProductStatus = 'draft' | 'pending' | 'approved' | 'rejected';
+type FulfillmentType = 'ready_stock' | 'pre_order';
 
 type CategoryOption = {
     id: number;
@@ -55,6 +58,14 @@ type SellerProduct = {
     description: string;
     price: number;
     stock: number;
+    fulfillment_type: {
+        code: FulfillmentType;
+        label: string;
+    };
+    pre_order_estimate_days: number | null;
+    pre_order_deadline: string | null;
+    pre_order_min_quantity: number | null;
+    pre_order_note: string | null;
     image: string | null;
     status: {
         code: ProductStatus;
@@ -98,6 +109,9 @@ export default function SellerProductEdit({
     product,
 }: SellerProductEditProps) {
     const [categoryId, setCategoryId] = useState(String(product.category_id));
+    const [fulfillmentType, setFulfillmentType] = useState(
+        product.fulfillment_type.code,
+    );
 
     return (
         <>
@@ -292,9 +306,7 @@ export default function SellerProductEdit({
                                                     max={100000000}
                                                     step={1}
                                                     inputMode="numeric"
-                                                    defaultValue={
-                                                        product.price
-                                                    }
+                                                    defaultValue={product.price}
                                                     className={`${inputClassName} pl-9`}
                                                     aria-invalid={Boolean(
                                                         errors.price,
@@ -305,6 +317,196 @@ export default function SellerProductEdit({
                                                 message={errors.price}
                                             />
                                         </div>
+
+                                        <div className={fieldClassName}>
+                                            <Label
+                                                htmlFor="fulfillment_type"
+                                                className={labelClassName}
+                                            >
+                                                Sistem Pemesanan
+                                            </Label>
+                                            <Select
+                                                name="fulfillment_type"
+                                                value={fulfillmentType}
+                                                onValueChange={(value) =>
+                                                    setFulfillmentType(
+                                                        value as FulfillmentType,
+                                                    )
+                                                }
+                                                required
+                                            >
+                                                <SelectTrigger
+                                                    id="fulfillment_type"
+                                                    className={
+                                                        selectTriggerClassName
+                                                    }
+                                                    aria-invalid={Boolean(
+                                                        errors.fulfillment_type,
+                                                    )}
+                                                >
+                                                    <SelectValue placeholder="Pilih sistem pemesanan" />
+                                                </SelectTrigger>
+                                                <SelectContent
+                                                    style={selectPortalTheme}
+                                                >
+                                                    <SelectGroup>
+                                                        <SelectLabel>
+                                                            Sistem Pemesanan
+                                                        </SelectLabel>
+                                                        <SelectItem value="ready_stock">
+                                                            Ready Stock
+                                                        </SelectItem>
+                                                        <SelectItem value="pre_order">
+                                                            Pre-Order
+                                                        </SelectItem>
+                                                    </SelectGroup>
+                                                </SelectContent>
+                                            </Select>
+                                            <InputError
+                                                message={
+                                                    errors.fulfillment_type
+                                                }
+                                            />
+                                        </div>
+
+                                        {fulfillmentType === 'pre_order' && (
+                                            <div className="grid gap-5 md:grid-cols-2">
+                                                <div className={fieldClassName}>
+                                                    <Label
+                                                        htmlFor="pre_order_estimate_days"
+                                                        className={
+                                                            labelClassName
+                                                        }
+                                                    >
+                                                        Estimasi PO
+                                                    </Label>
+                                                    <div className="relative">
+                                                        <Clock3 className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" />
+                                                        <Input
+                                                            id="pre_order_estimate_days"
+                                                            name="pre_order_estimate_days"
+                                                            type="number"
+                                                            required
+                                                            min={1}
+                                                            max={365}
+                                                            step={1}
+                                                            inputMode="numeric"
+                                                            defaultValue={
+                                                                product.pre_order_estimate_days ??
+                                                                7
+                                                            }
+                                                            className={`${inputClassName} pl-9`}
+                                                            aria-invalid={Boolean(
+                                                                errors.pre_order_estimate_days,
+                                                            )}
+                                                        />
+                                                    </div>
+                                                    <InputError
+                                                        message={
+                                                            errors.pre_order_estimate_days
+                                                        }
+                                                    />
+                                                </div>
+
+                                                <div className={fieldClassName}>
+                                                    <Label
+                                                        htmlFor="pre_order_note"
+                                                        className={
+                                                            labelClassName
+                                                        }
+                                                    >
+                                                        Catatan PO
+                                                    </Label>
+                                                    <Input
+                                                        id="pre_order_note"
+                                                        name="pre_order_note"
+                                                        maxLength={255}
+                                                        defaultValue={
+                                                            product.pre_order_note ??
+                                                            ''
+                                                        }
+                                                        placeholder="Contoh: Diproduksi setelah kuota pesanan terkumpul"
+                                                        className={
+                                                            inputClassName
+                                                        }
+                                                        aria-invalid={Boolean(
+                                                            errors.pre_order_note,
+                                                        )}
+                                                    />
+                                                    <InputError
+                                                        message={
+                                                            errors.pre_order_note
+                                                        }
+                                                    />
+                                                </div>
+                                                <div className={fieldClassName}>
+                                                    <Label
+                                                        htmlFor="pre_order_deadline"
+                                                        className={
+                                                            labelClassName
+                                                        }
+                                                    >
+                                                        Deadline PO
+                                                    </Label>
+                                                    <Input
+                                                        id="pre_order_deadline"
+                                                        name="pre_order_deadline"
+                                                        type="date"
+                                                        defaultValue={
+                                                            product.pre_order_deadline ??
+                                                            ''
+                                                        }
+                                                        className={
+                                                            inputClassName
+                                                        }
+                                                        aria-invalid={Boolean(
+                                                            errors.pre_order_deadline,
+                                                        )}
+                                                    />
+                                                    <InputError
+                                                        message={
+                                                            errors.pre_order_deadline
+                                                        }
+                                                    />
+                                                </div>
+
+                                                <div className={fieldClassName}>
+                                                    <Label
+                                                        htmlFor="pre_order_min_quantity"
+                                                        className={
+                                                            labelClassName
+                                                        }
+                                                    >
+                                                        Minimum Kuota
+                                                    </Label>
+                                                    <Input
+                                                        id="pre_order_min_quantity"
+                                                        name="pre_order_min_quantity"
+                                                        type="number"
+                                                        min={1}
+                                                        max={100000}
+                                                        step={1}
+                                                        inputMode="numeric"
+                                                        defaultValue={
+                                                            product.pre_order_min_quantity ??
+                                                            ''
+                                                        }
+                                                        placeholder="Opsional"
+                                                        className={
+                                                            inputClassName
+                                                        }
+                                                        aria-invalid={Boolean(
+                                                            errors.pre_order_min_quantity,
+                                                        )}
+                                                    />
+                                                    <InputError
+                                                        message={
+                                                            errors.pre_order_min_quantity
+                                                        }
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
 
                                         <div className={fieldClassName}>
                                             <Label
@@ -337,6 +539,15 @@ export default function SellerProductEdit({
                                             />
                                         </div>
 
+                                        {product.status.code === 'draft' && (
+                                            <div className="rounded-[8px] border border-blue-100 bg-blue-50 p-4 text-sm text-blue-800">
+                                                Produk masih draft. Simpan draft
+                                                untuk melanjutkan nanti, atau
+                                                ajukan produk agar masuk antrian
+                                                moderasi.
+                                            </div>
+                                        )}
+
                                         <div className="flex flex-col-reverse gap-3 border-t border-slate-100 pt-6 sm:flex-row sm:justify-end">
                                             <Button
                                                 asChild
@@ -350,15 +561,47 @@ export default function SellerProductEdit({
                                                     Batal
                                                 </Link>
                                             </Button>
-                                            <Button
-                                                type="submit"
-                                                className="h-10 rounded-[8px] bg-blue-600 px-4 text-white hover:bg-blue-700"
-                                                disabled={processing}
-                                            >
-                                                {processing && <Spinner />}
-                                                <Save className="size-4" />
-                                                Simpan Perubahan
-                                            </Button>
+                                            {product.status.code === 'draft' ? (
+                                                <>
+                                                    <Button
+                                                        type="submit"
+                                                        name="status"
+                                                        value="draft"
+                                                        variant="outline"
+                                                        className="h-10 rounded-[8px] border-slate-200 bg-white"
+                                                        disabled={processing}
+                                                    >
+                                                        {processing && (
+                                                            <Spinner />
+                                                        )}
+                                                        <Save className="size-4" />
+                                                        Simpan Draft
+                                                    </Button>
+                                                    <Button
+                                                        type="submit"
+                                                        name="status"
+                                                        value="pending"
+                                                        className="h-10 rounded-[8px] bg-blue-600 px-4 text-white hover:bg-blue-700"
+                                                        disabled={processing}
+                                                    >
+                                                        {processing && (
+                                                            <Spinner />
+                                                        )}
+                                                        <Send className="size-4" />
+                                                        Ajukan Produk
+                                                    </Button>
+                                                </>
+                                            ) : (
+                                                <Button
+                                                    type="submit"
+                                                    className="h-10 rounded-[8px] bg-blue-600 px-4 text-white hover:bg-blue-700"
+                                                    disabled={processing}
+                                                >
+                                                    {processing && <Spinner />}
+                                                    <Save className="size-4" />
+                                                    Simpan Perubahan
+                                                </Button>
+                                            )}
                                         </div>
                                     </>
                                 )}

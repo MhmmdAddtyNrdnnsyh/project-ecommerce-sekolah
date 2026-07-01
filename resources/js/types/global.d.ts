@@ -14,6 +14,7 @@ declare module '@inertiajs/core' {
             auth: Auth;
             adminHeader: {
                 notifications: {
+                    key: string;
                     type: 'product';
                     title: string;
                     description: string;
@@ -26,6 +27,7 @@ declare module '@inertiajs/core' {
             } | null;
             sellerHeader: {
                 notifications: {
+                    key: string;
                     type: 'order' | 'stock';
                     title: string;
                     description: string;
@@ -37,6 +39,7 @@ declare module '@inertiajs/core' {
             flash: {
                 success?: string;
                 error?: string;
+                receipt_url?: string;
             };
             [key: string]: unknown;
         };

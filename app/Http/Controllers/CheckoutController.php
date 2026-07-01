@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Enums\OrderItemStatus;
 use App\Enums\OrderStatus;
+use App\Enums\PaymentMethod;
+use App\Enums\PaymentStatus;
 use App\Enums\ProductStatus;
 use App\Enums\UpJurusanConsignmentStatus;
 use App\Models\CartItem;
@@ -13,6 +15,7 @@ use App\Models\Product;
 use App\Models\UpJurusanConsignment;
 use App\Models\UpJurusanStockMovement;
 use App\Models\User;
+use App\Support\TransactionCode;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -65,18 +68,23 @@ class CheckoutController extends Controller
         $selectedIds = $this->selectedCartItemIds($request);
         $request->merge([
             'pickup_method' => $request->input('pickup_method', 'pickup'),
+            'payment_method' => $request->input('payment_method', PaymentMethod::Cash->value),
         ]);
         $validated = $request->validate([
             'pickup_method' => ['required', 'string', 'in:pickup,delivery'],
             'pickup_location' => ['required_if:pickup_method,delivery', 'nullable', 'string', 'max:255'],
+            'payment_method' => ['required', 'string', 'in:cash'],
             'buy_now_product_id' => ['nullable', 'integer', 'exists:products,id'],
             'buy_now_quantity' => ['required_with:buy_now_product_id', 'nullable', 'integer', 'min:1'],
         ]);
 
-        DB::transaction(function () use ($user, $validated, $selectedIds) {
+        $order = DB::transaction(function () use ($user, $validated, $selectedIds) {
             $order = Order::query()->create([
+                'code' => TransactionCode::make(),
                 'user_id' => $user->id,
                 'status' => OrderStatus::Pending,
+                'payment_status' => PaymentStatus::Unpaid,
+                'payment_method' => PaymentMethod::Cash,
                 'total_price' => 0,
                 'pickup_method' => $validated['pickup_method'],
                 'pickup_location' => $validated['pickup_method'] === 'delivery'
@@ -96,7 +104,7 @@ class CheckoutController extends Controller
 
                 $order->update(['total_price' => $totalPrice]);
 
-                return;
+                return $order;
             }
 
             $cartItems = CartItem::query()
@@ -127,9 +135,11 @@ class CheckoutController extends Controller
                 ->where('user_id', $user->id)
                 ->when($selectedIds !== [], fn ($query) => $query->whereIn('id', $selectedIds))
                 ->delete();
+
+            return $order;
         });
 
-        return to_route('cart.index')->with('success', 'Pesanan berhasil dibuat.');
+        return to_route('orders.show', $order)->with('success', 'Pesanan berhasil dibuat.');
     }
 
     /**
@@ -195,6 +205,11 @@ class CheckoutController extends Controller
             'slug' => $product->slug,
             'price' => $product->price,
             'stock' => $product->availableStock(),
+            'is_pre_order' => $product->isPreOrder(),
+            'pre_order_estimate_days' => $product->pre_order_estimate_days,
+            'pre_order_deadline' => $product->pre_order_deadline?->toDateString(),
+            'pre_order_min_quantity' => $product->pre_order_min_quantity,
+            'pre_order_note' => $product->pre_order_note,
             'image' => $product->image,
             'seller' => $this->ownerPayload($product),
             'category' => [
@@ -229,7 +244,7 @@ class CheckoutController extends Controller
             ]);
         }
 
-        if ($quantity > $product->availableStock()) {
+        if (! $product->isPreOrder() && $quantity > $product->availableStock()) {
             throw ValidationException::withMessages([
                 'cart' => "Quantity {$product->name} melebihi stok tersedia.",
             ]);
@@ -245,20 +260,46 @@ class CheckoutController extends Controller
             'quantity' => $quantity,
             'subtotal' => $subtotal,
             'status' => OrderItemStatus::Pending,
+            'payment_status' => PaymentStatus::Unpaid,
+            'payment_method' => PaymentMethod::Cash,
+            'is_pre_order' => $product->isPreOrder(),
+            'pre_order_estimate_days' => $product->isPreOrder() ? $product->pre_order_estimate_days : null,
+            'pre_order_deadline' => $product->isPreOrder() ? $product->pre_order_deadline?->toDateString() : null,
+            'pre_order_min_quantity' => $product->isPreOrder() ? $product->pre_order_min_quantity : null,
+            'pre_order_note' => $product->isPreOrder() ? $product->pre_order_note : null,
         ]);
 
+        if ($product->isPreOrder()) {
+            return $subtotal;
+        }
+
         if ($product->usesConsignmentStock()) {
-            $this->recordConsignmentSale($product, $actor, $quantity);
+            $this->recordConsignmentSale($order, $product, $actor, $quantity);
         } else {
             $product->update([
                 'stock' => $product->stock - $quantity,
             ]);
+
+            if ($product->seller_id === null && $product->up_jurusan_id !== null) {
+                UpJurusanStockMovement::query()->create([
+                    'up_jurusan_consignment_id' => null,
+                    'product_id' => $product->id,
+                    'order_id' => $order->id,
+                    'user_id' => $actor->id,
+                    'type' => 'out',
+                    'quantity' => $quantity,
+                    'unit_price' => $product->price,
+                    'gross_amount' => $subtotal,
+                    'commission_amount' => $subtotal,
+                    'seller_amount' => 0,
+                ]);
+            }
         }
 
         return $subtotal;
     }
 
-    private function recordConsignmentSale(Product $product, User $actor, int $quantity): void
+    private function recordConsignmentSale(Order $order, Product $product, User $actor, int $quantity): void
     {
         $remaining = $quantity;
         $consignments = UpJurusanConsignment::query()
@@ -286,6 +327,8 @@ class CheckoutController extends Controller
             ]);
             UpJurusanStockMovement::query()->create([
                 'up_jurusan_consignment_id' => $consignment->id,
+                'product_id' => null,
+                'order_id' => $order->id,
                 'user_id' => $actor->id,
                 'type' => 'out',
                 'quantity' => $sold,

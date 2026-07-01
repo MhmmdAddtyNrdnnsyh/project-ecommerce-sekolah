@@ -8,7 +8,9 @@ import {
     Package,
     Settings,
     ShoppingCart,
+    Store,
     Tags,
+    UserRoundCheck,
     Users,
     Warehouse,
 } from 'lucide-react';
@@ -233,6 +235,11 @@ function getMainNavItems(
                 icon: Warehouse,
             },
             {
+                title: 'Picket Officer',
+                href: '/admin-jurusan/picket-officer/create',
+                icon: UserRoundCheck,
+            },
+            {
                 title: 'Request Titip',
                 href: '/admin-jurusan/consignments',
                 icon: ClipboardCheck,
@@ -258,6 +265,11 @@ function getMainNavItems(
                 icon: ShoppingCart,
             },
             {
+                title: 'Terima Barang',
+                href: '/picket/receiving',
+                icon: ClipboardCheck,
+            },
+            {
                 title: 'Orders',
                 href: '/picket/orders',
                 icon: ClipboardList,
@@ -280,6 +292,11 @@ function getMainNavItems(
             title: 'Moderasi Produk',
             href: adminProductModerationIndex(),
             icon: ClipboardCheck,
+        },
+        {
+            title: 'Pengajuan Seller',
+            href: '/admin/seller-applications',
+            icon: Store,
         },
         { title: 'Products', href: '/admin/products', icon: Package },
         { title: 'Categories', href: '/admin/categories', icon: Tags },

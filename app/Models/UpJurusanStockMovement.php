@@ -8,7 +8,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * @property int $id
- * @property int $up_jurusan_consignment_id
+ * @property int|null $up_jurusan_consignment_id
+ * @property int|null $product_id
+ * @property int|null $up_jurusan_pos_sale_id
+ * @property int|null $order_id
  * @property int $user_id
  * @property string $type
  * @property int $quantity
@@ -17,10 +20,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $commission_amount
  * @property int $seller_amount
  * @property string|null $note
- * @property UpJurusanConsignment $consignment
+ * @property UpJurusanConsignment|null $consignment
+ * @property Product|null $product
+ * @property UpJurusanPosSale|null $posSale
  * @property User $user
  */
-#[Fillable(['up_jurusan_consignment_id', 'user_id', 'type', 'quantity', 'unit_price', 'gross_amount', 'commission_amount', 'seller_amount', 'note'])]
+#[Fillable(['up_jurusan_consignment_id', 'product_id', 'up_jurusan_pos_sale_id', 'order_id', 'user_id', 'type', 'quantity', 'unit_price', 'gross_amount', 'commission_amount', 'seller_amount', 'note'])]
 class UpJurusanStockMovement extends Model
 {
     /**
@@ -43,6 +48,30 @@ class UpJurusanStockMovement extends Model
     public function consignment(): BelongsTo
     {
         return $this->belongsTo(UpJurusanConsignment::class, 'up_jurusan_consignment_id');
+    }
+
+    /**
+     * @return BelongsTo<Product, $this>
+     */
+    public function product(): BelongsTo
+    {
+        return $this->belongsTo(Product::class);
+    }
+
+    /**
+     * @return BelongsTo<UpJurusanPosSale, $this>
+     */
+    public function posSale(): BelongsTo
+    {
+        return $this->belongsTo(UpJurusanPosSale::class, 'up_jurusan_pos_sale_id');
+    }
+
+    /**
+     * @return BelongsTo<Order, $this>
+     */
+    public function order(): BelongsTo
+    {
+        return $this->belongsTo(Order::class);
     }
 
     /**

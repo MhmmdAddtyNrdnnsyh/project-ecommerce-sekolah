@@ -339,9 +339,9 @@ Use the current Support button as a second `DialogTrigger` and add this content:
 Run:
 
 ```bash
-pnpm exec prettier --write resources/js/components/app-sidebar-header.tsx resources/js/types/global.d.ts
-pnpm types:check
-pnpm lint:check
+bunx prettier --write resources/js/components/app-sidebar-header.tsx resources/js/types/global.d.ts
+bun run types:check
+bun run lint:check
 ```
 
 Expected: all commands exit with code 0.
@@ -369,10 +369,10 @@ Expected: all focused tests pass.
 - [ ] **Step 2: Run project frontend checks and production build**
 
 ```bash
-pnpm format:check
-pnpm types:check
-pnpm lint:check
-pnpm build
+bun run format:check
+bun run types:check
+bun run lint:check
+bun run build
 ```
 
 Expected: all commands exit with code 0 and Vite produces the production bundle.

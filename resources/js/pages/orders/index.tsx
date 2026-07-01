@@ -22,7 +22,15 @@ import { index as ordersIndex, show as orderShow } from '@/routes/orders';
 
 type BuyerOrder = {
     id: number;
+    code: string;
     status: { code: string; label: string };
+    payment: {
+        status: { code: string; label: string };
+        method: { code: string; label: string };
+        proof_url: string | null;
+        confirmed_at: string | null;
+        rejection_reason: string | null;
+    };
     total_price: number;
     items_count: number;
     items: {
@@ -30,6 +38,11 @@ type BuyerOrder = {
         product_name: string;
         quantity: number;
         subtotal: number;
+        is_pre_order: boolean;
+        pre_order_estimate_days: number | null;
+        pre_order_deadline: string | null;
+        pre_order_min_quantity: number | null;
+        pre_order_note: string | null;
         status: { code: string; label: string };
         seller: { id: number; name: string };
     }[];
@@ -128,7 +141,7 @@ export default function BuyerOrdersIndex({ orders }: Props) {
                                         <div className="flex items-start justify-between gap-3">
                                             <div>
                                                 <p className="font-semibold text-slate-950">
-                                                    Order #{order.id}
+                                                    {order.code}
                                                 </p>
                                                 <p className="mt-1 text-xs text-slate-500">
                                                     {formatDate(
@@ -140,6 +153,22 @@ export default function BuyerOrdersIndex({ orders }: Props) {
                                                 {order.status.label}
                                             </Badge>
                                         </div>
+                                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                                            <Badge
+                                                className={
+                                                    paymentStatusClass[
+                                                        order.payment.status
+                                                            .code
+                                                    ] ??
+                                                    'rounded-[6px] bg-slate-100 text-slate-700'
+                                                }
+                                            >
+                                                {order.payment.status.label}
+                                            </Badge>
+                                            <span className="text-xs font-medium text-slate-500">
+                                                {order.payment.method.label}
+                                            </span>
+                                        </div>
                                         <div className="mt-4 space-y-1">
                                             {order.items.map((item) => (
                                                 <p
@@ -148,6 +177,8 @@ export default function BuyerOrdersIndex({ orders }: Props) {
                                                 >
                                                     {item.product_name} x
                                                     {item.quantity}
+                                                    {item.is_pre_order &&
+                                                        ` • PO ${item.pre_order_estimate_days} hari`}
                                                 </p>
                                             ))}
                                             {order.items_count >
@@ -182,6 +213,7 @@ export default function BuyerOrdersIndex({ orders }: Props) {
                                                 'Order',
                                                 'Item',
                                                 'Total',
+                                                'Payment',
                                                 'Status',
                                                 'Waktu',
                                                 'Aksi',
@@ -199,7 +231,7 @@ export default function BuyerOrdersIndex({ orders }: Props) {
                                         {orders.data.length === 0 && (
                                             <TableRow>
                                                 <TableCell
-                                                    colSpan={6}
+                                                    colSpan={7}
                                                     className="py-12 text-center"
                                                 >
                                                     <Package className="mx-auto size-8 text-slate-400" />
@@ -221,7 +253,7 @@ export default function BuyerOrdersIndex({ orders }: Props) {
                                         {orders.data.map((order) => (
                                             <TableRow key={order.id}>
                                                 <TableCell className="px-5 font-medium text-slate-950">
-                                                    #{order.id}
+                                                    {order.code}
                                                 </TableCell>
                                                 <TableCell className="px-5">
                                                     <div className="space-y-1">
@@ -240,6 +272,8 @@ export default function BuyerOrdersIndex({ orders }: Props) {
                                                                     {
                                                                         item.quantity
                                                                     }
+                                                                    {item.is_pre_order &&
+                                                                        ` • PO ${item.pre_order_estimate_days} hari`}
                                                                 </div>
                                                             ),
                                                         )}
@@ -262,6 +296,34 @@ export default function BuyerOrdersIndex({ orders }: Props) {
                                                     )}
                                                 </TableCell>
                                                 <TableCell className="px-5">
+                                                    <div className="space-y-1">
+                                                        <Badge
+                                                            className={
+                                                                paymentStatusClass[
+                                                                    order
+                                                                        .payment
+                                                                        .status
+                                                                        .code
+                                                                ] ??
+                                                                'rounded-[6px] bg-slate-100 text-slate-700'
+                                                            }
+                                                        >
+                                                            {
+                                                                order.payment
+                                                                    .status
+                                                                    .label
+                                                            }
+                                                        </Badge>
+                                                        <p className="text-xs text-slate-500">
+                                                            {
+                                                                order.payment
+                                                                    .method
+                                                                    .label
+                                                            }
+                                                        </p>
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="px-5">
                                                     <Badge className="rounded-[6px] bg-blue-50 text-blue-700">
                                                         {order.status.label}
                                                     </Badge>
@@ -282,7 +344,7 @@ export default function BuyerOrdersIndex({ orders }: Props) {
                                                             href={orderShow(
                                                                 order.id,
                                                             )}
-                                                            aria-label={`Lihat order ${order.id}`}
+                                                            aria-label={`Lihat order ${order.code}`}
                                                         >
                                                             <Eye className="size-4" />
                                                         </Link>
@@ -303,4 +365,11 @@ export default function BuyerOrdersIndex({ orders }: Props) {
 
 BuyerOrdersIndex.layout = {
     breadcrumbs: [{ title: 'Orders', href: ordersIndex() }],
+};
+
+const paymentStatusClass: Record<string, string> = {
+    unpaid: 'rounded-[6px] bg-slate-100 text-slate-700',
+    pending_confirmation: 'rounded-[6px] bg-amber-50 text-amber-700',
+    paid: 'rounded-[6px] bg-emerald-50 text-emerald-700',
+    rejected: 'rounded-[6px] bg-rose-50 text-rose-700',
 };
