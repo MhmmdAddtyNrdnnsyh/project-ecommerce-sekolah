@@ -65,11 +65,7 @@ const formatDate = (value: string | null) =>
           )
         : '-';
 
-export default function AdminUsersIndex({
-    users,
-    roles,
-    filters,
-}: Props) {
+export default function AdminUsersIndex({ users, roles, filters }: Props) {
     const [q, setQ] = useState(filters.q);
     const [role, setRole] = useState(filters.role || '');
 
@@ -96,8 +92,8 @@ export default function AdminUsersIndex({
                         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                             <div>
                                 <Badge className="mb-2 rounded-[6px] bg-blue-50 text-blue-700">
-                                    <Users className="size-3.5" />{' '}
-                                    {users.total} user
+                                    <Users className="size-3.5" /> {users.total}{' '}
+                                    user
                                 </Badge>
                                 <h1 className="text-2xl font-semibold text-slate-950">
                                     Users

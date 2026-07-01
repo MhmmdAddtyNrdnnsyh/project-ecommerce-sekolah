@@ -200,7 +200,7 @@ test('admin can list and filter orders', function () {
         );
 });
 
-test('admin can manually approve cash payment', function () {
+test('admin order payment is read only', function () {
     $admin = User::factory()->create(['role' => UserRole::Admin]);
     $order = Order::factory()->create([
         'payment_status' => PaymentStatus::Unpaid,
@@ -210,57 +210,22 @@ test('admin can manually approve cash payment', function () {
     OrderItem::factory()->for($order)->create();
 
     $this->actingAs($admin)
-        ->from(route('admin.orders.index'))
-        ->post(route('admin.orders.payment.approve', $order))
-        ->assertRedirect(route('admin.orders.index'))
-        ->assertSessionHas('success', "Pembayaran order {$order->code} berhasil di-override lunas.");
-
-    $order->refresh();
-
-    expect($order->payment_status)->toBe(PaymentStatus::Paid)
-        ->and($order->payment_confirmed_by)->toBe($admin->id)
-        ->and($order->payment_confirmed_at)->not->toBeNull()
-        ->and($order->payment_rejection_reason)->toBeNull();
-    expect($order->items()->first()?->payment_status)->toBe(PaymentStatus::Paid);
-});
-
-test('admin can reject unpaid cash payment with a reason', function () {
-    $admin = User::factory()->create(['role' => UserRole::Admin]);
-    $order = Order::factory()->create([
-        'payment_status' => PaymentStatus::Unpaid,
-    ]);
-    OrderItem::factory()->for($order)->create();
+        ->get(route('admin.orders.index', ['q' => (string) $order->id]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('orders.data.0.payment.status.code', PaymentStatus::Unpaid->value)
+            ->where('orders.data.0.payment.status.label', PaymentStatus::Unpaid->label()),
+        );
 
     $this->actingAs($admin)
-        ->from(route('admin.orders.index'))
-        ->post(route('admin.orders.payment.reject', $order), [
-            'payment_rejection_reason' => 'Uang tunai belum diterima admin.',
-        ])
-        ->assertRedirect(route('admin.orders.index'))
-        ->assertSessionHas('success', "Pembayaran order {$order->code} ditolak.");
-
-    $order->refresh();
-
-    expect($order->payment_status)->toBe(PaymentStatus::Rejected)
-        ->and($order->payment_rejection_reason)->toBe('Uang tunai belum diterima admin.')
-        ->and($order->payment_confirmed_at)->toBeNull()
-        ->and($order->payment_confirmed_by)->toBeNull();
-    expect($order->items()->first()?->payment_status)->toBe(PaymentStatus::Rejected);
-});
-
-test('admin payment rejection requires a reason', function () {
-    $admin = User::factory()->create(['role' => UserRole::Admin]);
-    $order = Order::factory()->create([
-        'payment_status' => PaymentStatus::Unpaid,
-    ]);
+        ->post("/admin/orders/{$order->id}/payment/approve")
+        ->assertNotFound();
 
     $this->actingAs($admin)
-        ->from(route('admin.orders.index'))
-        ->post(route('admin.orders.payment.reject', $order), [
-            'payment_rejection_reason' => '',
+        ->post("/admin/orders/{$order->id}/payment/reject", [
+            'payment_rejection_reason' => 'Tidak boleh diproses admin.',
         ])
-        ->assertRedirect(route('admin.orders.index'))
-        ->assertSessionHasErrors('payment_rejection_reason');
+        ->assertNotFound();
 
     expect($order->fresh()->payment_status)->toBe(PaymentStatus::Unpaid);
 });

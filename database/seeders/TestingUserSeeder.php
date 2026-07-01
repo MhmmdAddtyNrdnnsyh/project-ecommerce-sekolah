@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Enums\UserRole;
 use App\Models\Position;
+use App\Models\SchoolClass;
 use App\Models\UpJurusan;
 use App\Models\User;
 use Illuminate\Database\Seeder;
@@ -22,7 +23,10 @@ class TestingUserSeeder extends Seeder
         $teacherPosition = Position::query()
             ->where('code', Position::TEACHER)
             ->firstOrFail();
-        $upJurusanId = UpJurusan::query()->value('id');
+        $studentPosition = Position::query()
+            ->where('code', Position::STUDENT)
+            ->firstOrFail();
+        $studentClassId = SchoolClass::query()->value('id');
 
         foreach ($this->users() as $user) {
             User::query()->updateOrCreate(
@@ -31,12 +35,28 @@ class TestingUserSeeder extends Seeder
                     'name' => $user['name'],
                     'role' => $user['role'],
                     'password' => 'password',
-                    'position_id' => $teacherPosition->id,
-                    'class_id' => null,
-                    'up_jurusan_id' => $user['role'] === UserRole::PicketOfficer ? $upJurusanId : null,
+                    'position_id' => $user['role'] === UserRole::Buyer ? $studentPosition->id : $teacherPosition->id,
+                    'class_id' => $user['role'] === UserRole::Buyer ? $studentClassId : null,
+                    'up_jurusan_id' => null,
                 ],
             );
         }
+
+        $adminJurusan = User::query()
+            ->where('email', 'admin.jurusan@educart.test')
+            ->firstOrFail();
+        $picket = User::query()
+            ->where('email', 'picket@educart.test')
+            ->firstOrFail();
+        $upJurusan = UpJurusan::query()->updateOrCreate(
+            ['name' => 'UP RPL'],
+            [
+                'admin_jurusan_id' => $adminJurusan->id,
+                'description' => 'Unit produksi jurusan RPL untuk demo EduCart.',
+            ],
+        );
+
+        $picket->update(['up_jurusan_id' => $upJurusan->id]);
     }
 
     /**
@@ -54,6 +74,11 @@ class TestingUserSeeder extends Seeder
                 'name' => 'Seller EduCart',
                 'email' => 'seller@educart.test',
                 'role' => UserRole::Seller,
+            ],
+            [
+                'name' => 'Buyer EduCart',
+                'email' => 'buyer@educart.test',
+                'role' => UserRole::Buyer,
             ],
             [
                 'name' => 'Admin Jurusan EduCart',

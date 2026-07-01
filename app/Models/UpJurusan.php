@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string|null $description
  * @property User $adminJurusan
  * @property Collection<int, User> $picketOfficers
+ * @property Collection<int, Product> $products
  */
 #[Fillable(['admin_jurusan_id', 'name', 'description'])]
 class UpJurusan extends Model
@@ -46,5 +47,13 @@ class UpJurusan extends Model
     public function picketOfficers(): HasMany
     {
         return $this->hasMany(User::class);
+    }
+
+    /**
+     * @return HasMany<Product, $this>
+     */
+    public function products(): HasMany
+    {
+        return $this->hasMany(Product::class);
     }
 }

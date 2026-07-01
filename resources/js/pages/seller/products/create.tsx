@@ -387,8 +387,7 @@ export default function SellerProductCreate({
                                                     >
                                                         <SelectGroup>
                                                             <SelectLabel>
-                                                                Sistem
-                                                                Pemesanan
+                                                                Sistem Pemesanan
                                                             </SelectLabel>
                                                             <SelectItem value="ready_stock">
                                                                 Ready Stock
@@ -439,74 +438,84 @@ export default function SellerProductCreate({
                                             {salesMethod === 'self_managed' &&
                                                 fulfillmentType ===
                                                     'ready_stock' && (
-                                                <div className={fieldClassName}>
-                                                    <Label
-                                                        htmlFor="stock"
+                                                    <div
                                                         className={
-                                                            labelClassName
+                                                            fieldClassName
                                                         }
                                                     >
-                                                        Stok
-                                                    </Label>
-                                                    <Input
-                                                        id="stock"
-                                                        name="stock"
-                                                        type="number"
-                                                        required
-                                                        min={0}
-                                                        max={100000}
-                                                        step={1}
-                                                        inputMode="numeric"
-                                                        placeholder="10"
-                                                        className={
-                                                            inputClassName
-                                                        }
-                                                        aria-invalid={Boolean(
-                                                            errors.stock,
-                                                        )}
-                                                    />
-                                                    <InputError
-                                                        message={errors.stock}
-                                                    />
-                                                </div>
-                                            )}
+                                                        <Label
+                                                            htmlFor="stock"
+                                                            className={
+                                                                labelClassName
+                                                            }
+                                                        >
+                                                            Stok
+                                                        </Label>
+                                                        <Input
+                                                            id="stock"
+                                                            name="stock"
+                                                            type="number"
+                                                            required
+                                                            min={0}
+                                                            max={100000}
+                                                            step={1}
+                                                            inputMode="numeric"
+                                                            placeholder="10"
+                                                            className={
+                                                                inputClassName
+                                                            }
+                                                            aria-invalid={Boolean(
+                                                                errors.stock,
+                                                            )}
+                                                        />
+                                                        <InputError
+                                                            message={
+                                                                errors.stock
+                                                            }
+                                                        />
+                                                    </div>
+                                                )}
 
                                             {salesMethod === 'up_jurusan' &&
                                                 fulfillmentType ===
                                                     'ready_stock' && (
-                                                <div className={fieldClassName}>
-                                                    <Label
-                                                        htmlFor="requested_quantity"
+                                                    <div
                                                         className={
-                                                            labelClassName
+                                                            fieldClassName
                                                         }
                                                     >
-                                                        Jumlah Titip
-                                                    </Label>
-                                                    <Input
-                                                        id="requested_quantity"
-                                                        name="requested_quantity"
-                                                        type="number"
-                                                        required
-                                                        min={1}
-                                                        max={100000}
-                                                        step={1}
-                                                        inputMode="numeric"
-                                                        placeholder="20"
-                                                        className={
-                                                            inputClassName
-                                                        }
-                                                        aria-invalid={Boolean(
-                                                            errors.requested_quantity,
-                                                        )}
-                                                    />
-                                                    <InputError
-                                                        message={
-                                                            errors.requested_quantity
-                                                        }
-                                                    />
-                                                </div>
-                                            )}
+                                                        <Label
+                                                            htmlFor="requested_quantity"
+                                                            className={
+                                                                labelClassName
+                                                            }
+                                                        >
+                                                            Jumlah Titip
+                                                        </Label>
+                                                        <Input
+                                                            id="requested_quantity"
+                                                            name="requested_quantity"
+                                                            type="number"
+                                                            required
+                                                            min={1}
+                                                            max={100000}
+                                                            step={1}
+                                                            inputMode="numeric"
+                                                            placeholder="20"
+                                                            className={
+                                                                inputClassName
+                                                            }
+                                                            aria-invalid={Boolean(
+                                                                errors.requested_quantity,
+                                                            )}
+                                                        />
+                                                        <InputError
+                                                            message={
+                                                                errors.requested_quantity
+                                                            }
+                                                        />
+                                                    </div>
+                                                )}
                                         </div>
 
                                         {fulfillmentType === 'pre_order' && (

@@ -105,9 +105,7 @@ export default function AdminSellerApplicationsIndex({
                                         )}
                                         {sellerApplications.map(
                                             (application) => (
-                                                <TableRow
-                                                    key={application.id}
-                                                >
+                                                <TableRow key={application.id}>
                                                     <TableCell className="px-5">
                                                         <div className="font-medium text-slate-950">
                                                             {

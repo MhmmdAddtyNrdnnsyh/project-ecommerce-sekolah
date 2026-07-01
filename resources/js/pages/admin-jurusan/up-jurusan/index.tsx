@@ -23,6 +23,17 @@ type Props = {
             email: string;
             up_jurusan_id: number | null;
         }[];
+        products: {
+            id: number;
+            name: string;
+            category_name: string;
+            price: number;
+            stock: number;
+            status: {
+                code: string;
+                label: string;
+            };
+        }[];
     }[];
     picketOptions: {
         id: number;
@@ -35,6 +46,13 @@ type Props = {
         name: string;
     }[];
 };
+
+const formatRupiah = (value: number) =>
+    new Intl.NumberFormat('id-ID', {
+        style: 'currency',
+        currency: 'IDR',
+        maximumFractionDigits: 0,
+    }).format(value);
 
 export default function AdminJurusanUpJurusan({
     upJurusans,
@@ -180,61 +198,130 @@ function UpJurusanItem({
             </div>
 
             <div className="mt-4 border-t border-slate-100 pt-4">
-                <div className="mb-3 flex items-center gap-2 text-sm font-medium text-slate-700">
-                    <PackagePlus className="size-4 text-slate-500" />
-                    Tambah Produk UP
+                <div className="mb-4">
+                    <div className="mb-3 flex items-center gap-2 text-sm font-medium text-slate-700">
+                        <Warehouse className="size-4 text-slate-500" />
+                        Produk Milik {up.name}
+                    </div>
+                    {up.products.length === 0 ? (
+                        <div className="rounded-[8px] border border-dashed border-slate-200 p-4 text-sm text-slate-500">
+                            Belum ada produk milik UP Jurusan.
+                        </div>
+                    ) : (
+                        <div className="overflow-x-auto rounded-[8px] border border-slate-100">
+                            <table className="min-w-full text-sm">
+                                <thead className="bg-slate-50 text-left text-xs font-medium text-slate-500">
+                                    <tr>
+                                        <th className="px-4 py-3">Produk</th>
+                                        <th className="px-4 py-3">Kategori</th>
+                                        <th className="px-4 py-3 text-right">
+                                            Stok
+                                        </th>
+                                        <th className="px-4 py-3 text-right">
+                                            Harga
+                                        </th>
+                                        <th className="px-4 py-3 text-right">
+                                            Status
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {up.products.map((product) => (
+                                        <tr
+                                            key={product.id}
+                                            className="bg-white"
+                                        >
+                                            <td className="px-4 py-3">
+                                                <p className="font-medium text-slate-950">
+                                                    {product.name}
+                                                </p>
+                                                <p className="mt-1 text-xs text-slate-500">
+                                                    Dikelola {up.name}
+                                                </p>
+                                            </td>
+                                            <td className="px-4 py-3 text-slate-600">
+                                                {product.category_name}
+                                            </td>
+                                            <td className="px-4 py-3 text-right tabular-nums">
+                                                {product.stock}
+                                            </td>
+                                            <td className="px-4 py-3 text-right font-medium tabular-nums">
+                                                {formatRupiah(product.price)}
+                                            </td>
+                                            <td className="px-4 py-3 text-right">
+                                                <span className="rounded-[6px] bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700">
+                                                    {product.status.label}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
                 </div>
-                <Form
-                    action="/admin-jurusan/products"
-                    method="post"
-                    className="grid gap-3 md:grid-cols-2"
-                >
-                    <input
-                        type="hidden"
-                        name="up_jurusan_id"
-                        value={up.id}
-                        readOnly
-                    />
-                    <Input name="name" placeholder="Nama produk UP" required />
-                    <Select name="category_id" required>
-                        <SelectTrigger className="rounded-[8px] border-slate-200 bg-white">
-                            <SelectValue placeholder="Pilih kategori" />
-                        </SelectTrigger>
-                        <SelectContent className="rounded-[8px] bg-white text-slate-900 ring-slate-200">
-                            <SelectGroup>
-                                <SelectLabel>Kategori</SelectLabel>
-                                {categories.map((category) => (
-                                    <SelectItem
-                                        key={category.id}
-                                        value={String(category.id)}
-                                    >
-                                        {category.name}
-                                    </SelectItem>
-                                ))}
-                            </SelectGroup>
-                        </SelectContent>
-                    </Select>
-                    <Input
-                        name="description"
-                        placeholder="Deskripsi produk"
-                        required
-                    />
-                    <Input
-                        name="price"
-                        type="number"
-                        min="1"
-                        placeholder="Harga"
-                        required
-                    />
-                    <Input
-                        name="stock"
-                        type="number"
-                        min="0"
-                        placeholder="Stok"
-                        required
-                    />
-                    <Button type="submit">Tambah Produk</Button>
-                </Form>
+
+                <div className="border-t border-slate-100 pt-4">
+                    <div className="mb-3 flex items-center gap-2 text-sm font-medium text-slate-700">
+                        <PackagePlus className="size-4 text-slate-500" />
+                        Tambah Produk UP
+                    </div>
+                    <Form
+                        action="/admin-jurusan/products"
+                        method="post"
+                        className="grid gap-3 md:grid-cols-2"
+                    >
+                        <input
+                            type="hidden"
+                            name="up_jurusan_id"
+                            value={up.id}
+                            readOnly
+                        />
+                        <Input
+                            name="name"
+                            placeholder="Nama produk UP"
+                            required
+                        />
+                        <Select name="category_id" required>
+                            <SelectTrigger className="rounded-[8px] border-slate-200 bg-white">
+                                <SelectValue placeholder="Pilih kategori" />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-[8px] bg-white text-slate-900 ring-slate-200">
+                                <SelectGroup>
+                                    <SelectLabel>Kategori</SelectLabel>
+                                    {categories.map((category) => (
+                                        <SelectItem
+                                            key={category.id}
+                                            value={String(category.id)}
+                                        >
+                                            {category.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectGroup>
+                            </SelectContent>
+                        </Select>
+                        <Input
+                            name="description"
+                            placeholder="Deskripsi produk"
+                            required
+                        />
+                        <Input
+                            name="price"
+                            type="number"
+                            min="1"
+                            placeholder="Harga"
+                            required
+                        />
+                        <Input
+                            name="stock"
+                            type="number"
+                            min="0"
+                            placeholder="Stok"
+                            required
+                        />
+                        <Button type="submit">Tambah Produk</Button>
+                    </Form>
+                </div>
             </div>
         </div>
     );

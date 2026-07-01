@@ -67,8 +67,8 @@ export default function SellerApplicationIndex({ application }: Props) {
                         </h1>
                         <p className="text-sm leading-6 text-slate-500">
                             Akun buyer tetap aktif. Setelah admin menyetujui
-                            pengajuan, akun kamu otomatis berubah menjadi
-                            seller dan bisa mengelola produk.
+                            pengajuan, akun kamu otomatis berubah menjadi seller
+                            dan bisa mengelola produk.
                         </p>
                         <Button
                             asChild
@@ -171,7 +171,9 @@ export default function SellerApplicationIndex({ application }: Props) {
                                                     placeholder="Tulis jenis produk, contoh: makanan ringan, alat tulis, karya jurusan."
                                                 />
                                                 <InputError
-                                                    message={errors.product_plan}
+                                                    message={
+                                                        errors.product_plan
+                                                    }
                                                 />
                                             </div>
 
@@ -202,8 +204,8 @@ export default function SellerApplicationIndex({ application }: Props) {
                                 </Form>
                             ) : (
                                 <p className="text-sm text-slate-500">
-                                    Pengajuan kamu sedang diproses. Tunggu
-                                    admin menyelesaikan review.
+                                    Pengajuan kamu sedang diproses. Tunggu admin
+                                    menyelesaikan review.
                                 </p>
                             )}
                         </CardContent>

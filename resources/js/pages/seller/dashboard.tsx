@@ -63,12 +63,7 @@ import {
 
 type StatTone = 'blue' | 'emerald' | 'amber' | 'rose';
 type OrderStatus =
-    | 'pending'
-    | 'in_production'
-    | 'ready'
-    | 'packed'
-    | 'sent'
-    | 'completed';
+    'pending' | 'in_production' | 'ready' | 'packed' | 'sent' | 'completed';
 
 type SellerIconKey =
     | 'alertTriangle'

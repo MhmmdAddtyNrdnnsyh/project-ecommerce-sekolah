@@ -24,8 +24,8 @@ export default function PicketUnassigned() {
                             Akun belum ditugaskan ke UP Jurusan
                         </h1>
                         <p className="mt-1 max-w-2xl text-sm text-slate-500">
-                            Dashboard picket, POS, penerimaan barang, order,
-                            dan laporan baru bisa digunakan setelah akun ini
+                            Dashboard picket, POS, penerimaan barang, order, dan
+                            laporan baru bisa digunakan setelah akun ini
                             terhubung dengan satu UP Jurusan.
                         </p>
                     </section>

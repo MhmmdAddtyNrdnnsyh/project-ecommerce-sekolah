@@ -447,8 +447,7 @@ export default function PicketDashboard({
                                                     </span>
                                                 </div>
                                                 <p className="mt-1 text-xs text-slate-500 tabular-nums">
-                                                    {item.quantity} item
-                                                    terjual
+                                                    {item.quantity} item terjual
                                                 </p>
                                             </div>
                                         ))}
@@ -462,8 +461,8 @@ export default function PicketDashboard({
                         <CardHeader className="p-5 pb-0">
                             <CardTitle>Ringkasan Setoran Hari Ini</CardTitle>
                             <CardDescription>
-                                Breakdown nominal dari transaksi yang akan
-                                masuk laporan picket.
+                                Breakdown nominal dari transaksi yang akan masuk
+                                laporan picket.
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="grid gap-3 p-5">
@@ -638,9 +637,5 @@ function Row({
         );
     }
 
-    return (
-        <div className={className}>
-            {content}
-        </div>
-    );
+    return <div className={className}>{content}</div>;
 }

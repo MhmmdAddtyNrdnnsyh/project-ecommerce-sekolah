@@ -36,12 +36,7 @@ import {
 } from '@/routes/seller/orders';
 
 type OrderStatus =
-    | 'pending'
-    | 'in_production'
-    | 'ready'
-    | 'packed'
-    | 'sent'
-    | 'completed';
+    'pending' | 'in_production' | 'ready' | 'packed' | 'sent' | 'completed';
 
 type PaymentStatus = 'unpaid' | 'pending_confirmation' | 'paid' | 'rejected';
 
@@ -425,8 +420,7 @@ export default function SellerOrdersIndex({
                                                             className={cn(
                                                                 'rounded-[6px]',
                                                                 paymentStatusStyles[
-                                                                    item
-                                                                        .payment
+                                                                    item.payment
                                                                         .status
                                                                         .code
                                                                 ],
@@ -521,7 +515,7 @@ export default function SellerOrdersIndex({
                                                                         ? 'Memproses...'
                                                                         : 'Tandai lunas'}
                                                                 </Button>
-                                                        )}
+                                                            )}
                                                         {item.managed_by_up_jurusan ? (
                                                             <Badge className="rounded-[6px] bg-slate-100 text-slate-700">
                                                                 Dikelola UP
@@ -530,28 +524,27 @@ export default function SellerOrdersIndex({
                                                         ) : nextActionFor(
                                                               item,
                                                           ) ? (
-                                                                <Button
-                                                                    type="button"
-                                                                    size="sm"
-                                                                    className="rounded-[8px]"
-                                                                    disabled={
-                                                                        processingId ===
-                                                                        item.id
-                                                                    }
-                                                                    onClick={() =>
-                                                                        advanceStatus(
-                                                                            item,
-                                                                        )
-                                                                    }
-                                                                >
-                                                                    {processingId ===
+                                                            <Button
+                                                                type="button"
+                                                                size="sm"
+                                                                className="rounded-[8px]"
+                                                                disabled={
+                                                                    processingId ===
                                                                     item.id
-                                                                        ? 'Memproses...'
-                                                                        : nextActionFor(
-                                                                              item,
-                                                                          )
-                                                                              ?.action}
-                                                                </Button>
+                                                                }
+                                                                onClick={() =>
+                                                                    advanceStatus(
+                                                                        item,
+                                                                    )
+                                                                }
+                                                            >
+                                                                {processingId ===
+                                                                item.id
+                                                                    ? 'Memproses...'
+                                                                    : nextActionFor(
+                                                                          item,
+                                                                      )?.action}
+                                                            </Button>
                                                         ) : null}
                                                     </div>
                                                 </TableCell>

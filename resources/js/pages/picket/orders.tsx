@@ -145,7 +145,10 @@ export default function PicketOrders({ daily_report, order_items }: Props) {
                     </div>
                 </section>
 
-                {(flash.success || flash.error || statusError || paymentError) && (
+                {(flash.success ||
+                    flash.error ||
+                    statusError ||
+                    paymentError) && (
                     <div
                         role="status"
                         className={cn(
@@ -155,7 +158,10 @@ export default function PicketOrders({ daily_report, order_items }: Props) {
                                 : 'border-emerald-200 bg-emerald-50 text-emerald-700',
                         )}
                     >
-                        {statusError || paymentError || flash.error || flash.success}
+                        {statusError ||
+                            paymentError ||
+                            flash.error ||
+                            flash.success}
                     </div>
                 )}
 
@@ -246,10 +252,7 @@ export default function PicketOrders({ daily_report, order_items }: Props) {
                                                         ],
                                                     )}
                                                 >
-                                                    {
-                                                        item.payment.status
-                                                            .label
-                                                    }
+                                                    {item.payment.status.label}
                                                 </Badge>
                                                 <p className="text-xs text-slate-500">
                                                     {item.payment.method.label}
@@ -284,39 +287,41 @@ export default function PicketOrders({ daily_report, order_items }: Props) {
                                                     'pending' ||
                                                 item.status.code ===
                                                     'packed' ? (
-                                                <Button
-                                                    type="button"
-                                                    size="sm"
-                                                    disabled={
-                                                        processingId ===
+                                                    <Button
+                                                        type="button"
+                                                        size="sm"
+                                                        disabled={
+                                                            processingId ===
+                                                            item.id
+                                                        }
+                                                        onClick={() =>
+                                                            advanceStatus(item)
+                                                        }
+                                                        className="w-fit"
+                                                    >
+                                                        {processingId ===
                                                         item.id
-                                                    }
-                                                    onClick={() =>
-                                                        advanceStatus(item)
-                                                    }
-                                                    className="w-fit"
-                                                >
-                                                    {processingId === item.id
-                                                        ? 'Memproses...'
-                                                        : nextStatus[
-                                                              item.status.code
-                                                          ].action}
-                                                </Button>
+                                                            ? 'Memproses...'
+                                                            : nextStatus[
+                                                                  item.status
+                                                                      .code
+                                                              ].action}
+                                                    </Button>
                                                 ) : (
-                                                <span
-                                                    className={cn(
-                                                        'text-sm font-medium',
-                                                        item.status.code ===
-                                                            'completed'
-                                                            ? 'text-emerald-700'
-                                                            : 'text-indigo-700',
-                                                    )}
-                                                >
-                                                    {item.status.code ===
-                                                    'completed'
-                                                        ? 'Selesai'
-                                                        : 'Menunggu buyer'}
-                                                </span>
+                                                    <span
+                                                        className={cn(
+                                                            'text-sm font-medium',
+                                                            item.status.code ===
+                                                                'completed'
+                                                                ? 'text-emerald-700'
+                                                                : 'text-indigo-700',
+                                                        )}
+                                                    >
+                                                        {item.status.code ===
+                                                        'completed'
+                                                            ? 'Selesai'
+                                                            : 'Menunggu buyer'}
+                                                    </span>
                                                 )}
                                             </div>
                                         </TableCell>

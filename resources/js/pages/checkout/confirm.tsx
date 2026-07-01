@@ -257,8 +257,7 @@ export default function CheckoutConfirm({ items, summary }: Props) {
                                     const stockIssue =
                                         !item.product.is_pre_order &&
                                         (item.product.stock <= 0 ||
-                                            item.quantity >
-                                                item.product.stock);
+                                            item.quantity > item.product.stock);
 
                                     return (
                                         <Link
@@ -506,10 +505,11 @@ export default function CheckoutConfirm({ items, summary }: Props) {
                                                     <p className="mt-1 text-xs leading-5 text-slate-500">
                                                         Bayar langsung saat
                                                         mengambil atau menerima
-                                                        pesanan. Admin dapat
+                                                        pesanan. Seller atau
+                                                        picket terkait akan
                                                         menandai pembayaran
                                                         sebagai lunas setelah
-                                                        diterima.
+                                                        tunai diterima.
                                                     </p>
                                                 </div>
                                             </div>
@@ -528,7 +528,7 @@ export default function CheckoutConfirm({ items, summary }: Props) {
                                             className="h-11 w-full"
                                         >
                                             {processing && <Spinner />}
-                                            Bayar sekarang
+                                            Buat pesanan
                                         </Button>
                                         {hasInvalidStock && (
                                             <p className="text-xs text-rose-600">

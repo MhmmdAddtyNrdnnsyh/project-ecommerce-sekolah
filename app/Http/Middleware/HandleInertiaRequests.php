@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Enums\OrderItemStatus;
+use App\Enums\ProductFulfillmentType;
 use App\Enums\ProductStatus;
 use App\Enums\UserRole;
 use App\Models\CartItem;
@@ -148,18 +149,25 @@ class HandleInertiaRequests extends Middleware
             ->reject(fn (array $notification) => in_array($notification['key'], $dismissedKeys, true));
 
         $stock = Product::query()
+            ->select('products.*')
+            ->selectRaw(Product::REAL_STOCK_SQL.' as real_stock')
             ->where('seller_id', $seller->id)
-            ->where('stock', '<=', Product::LOW_STOCK_THRESHOLD)
-            ->orderBy('stock')
+            ->where('fulfillment_type', ProductFulfillmentType::ReadyStock)
+            ->whereRaw(Product::REAL_STOCK_SQL.' <= ?', [Product::LOW_STOCK_THRESHOLD])
+            ->orderByRaw(Product::REAL_STOCK_SQL)
             ->limit(self::HEADER_NOTIFICATION_LIMIT)
-            ->get(['id', 'name', 'stock', 'updated_at'])
-            ->map(fn (Product $product) => [
-                'key' => $this->notificationKey('seller-stock-low', $product->id, $product->updated_at?->getTimestamp()),
-                'type' => 'stock',
-                'title' => $product->name,
-                'description' => $product->stock === 0 ? 'Stok habis' : "Stok tersisa {$product->stock}",
-                'href' => route('seller.inventory.index', ['q' => $product->name], absolute: false),
-            ])
+            ->get()
+            ->map(function (Product $product) {
+                $realStock = (int) $product->getAttribute('real_stock');
+
+                return [
+                    'key' => $this->notificationKey('seller-stock-low', $product->id, $product->updated_at?->getTimestamp()),
+                    'type' => 'stock',
+                    'title' => $product->name,
+                    'description' => $realStock === 0 ? 'Stok habis' : "Stok tersisa {$realStock}",
+                    'href' => route('seller.inventory.index', ['q' => $product->name], absolute: false),
+                ];
+            })
             ->reject(fn (array $notification) => in_array($notification['key'], $dismissedKeys, true));
 
         return [

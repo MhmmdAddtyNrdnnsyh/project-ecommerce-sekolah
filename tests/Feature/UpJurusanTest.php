@@ -12,6 +12,7 @@ use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\UpJurusan;
 use App\Models\UpJurusanConsignment;
+use App\Models\UpJurusanDailyReport;
 use App\Models\UpJurusanPosSale;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -165,6 +166,56 @@ test('admin jurusan can create product owned by own up jurusan', function () {
         'stock' => 5,
         'status' => ProductStatus::Approved->value,
     ]);
+});
+
+test('admin jurusan sees only own up jurusan products on management page', function () {
+    $adminJurusan = User::factory()->create(['role' => UserRole::AdminJurusan]);
+    $ownUp = UpJurusan::factory()->create(['admin_jurusan_id' => $adminJurusan->id, 'name' => 'UP RPL']);
+    $otherUp = UpJurusan::factory()->create(['name' => 'UP DKV']);
+    $category = Category::factory()->create(['name' => 'Merchandise']);
+    $seller = User::factory()->create(['role' => UserRole::Seller]);
+
+    Product::factory()->approved()->create([
+        'seller_id' => null,
+        'up_jurusan_id' => $ownUp->id,
+        'category_id' => $category->id,
+        'name' => 'Kaos RPL',
+        'price' => 75000,
+        'stock' => 10,
+        'sales_method' => ProductSalesMethod::UpJurusan,
+    ]);
+    Product::factory()->approved()->create([
+        'seller_id' => null,
+        'up_jurusan_id' => $otherUp->id,
+        'category_id' => $category->id,
+        'name' => 'Kaos DKV',
+        'sales_method' => ProductSalesMethod::UpJurusan,
+    ]);
+    $sellerProduct = Product::factory()->for($seller, 'seller')->approved()->create([
+        'up_jurusan_id' => null,
+        'category_id' => $category->id,
+        'name' => 'Risol Mayo Titipan',
+        'sales_method' => ProductSalesMethod::UpJurusan,
+    ]);
+    UpJurusanConsignment::factory()->create([
+        'seller_id' => $seller->id,
+        'product_id' => $sellerProduct->id,
+        'up_jurusan_id' => $ownUp->id,
+    ]);
+
+    $this->actingAs($adminJurusan)
+        ->get(route('admin-jurusan.up-jurusan.index'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('admin-jurusan/up-jurusan/index')
+            ->has('upJurusans', 1)
+            ->where('upJurusans.0.name', 'UP RPL')
+            ->has('upJurusans.0.products', 1)
+            ->where('upJurusans.0.products.0.name', 'Kaos RPL')
+            ->where('upJurusans.0.products.0.category_name', 'Merchandise')
+            ->where('upJurusans.0.products.0.stock', 10)
+            ->where('upJurusans.0.products.0.price', 75000),
+        );
 });
 
 test('admin jurusan cannot create product for another up jurusan', function () {
@@ -831,6 +882,43 @@ test('picket officer can sell up jurusan owned products through pos', function (
         'commission_amount' => 100000,
         'seller_amount' => 0,
     ]);
+});
+
+test('picket officer cannot record pos sale after daily report is submitted', function () {
+    $this->travelTo('2026-06-25 13:00:00');
+
+    $upJurusan = UpJurusan::factory()->create();
+    $picket = User::factory()->create([
+        'role' => UserRole::PicketOfficer,
+        'up_jurusan_id' => $upJurusan->id,
+    ]);
+    $consignment = UpJurusanConsignment::factory()->create([
+        'up_jurusan_id' => $upJurusan->id,
+        'received_quantity' => 5,
+        'sold_quantity' => 1,
+        'status' => UpJurusanConsignmentStatus::Received,
+    ]);
+    UpJurusanDailyReport::query()->create([
+        'up_jurusan_id' => $upJurusan->id,
+        'user_id' => $picket->id,
+        'report_date' => '2026-06-25',
+        'total_sold' => 2,
+        'total_revenue' => 6000,
+        'submitted_at' => now(),
+    ]);
+
+    $this->actingAs($picket)
+        ->from(route('picket.pos'))
+        ->post(route('picket.up-jurusan.sales.store'), [
+            'items' => [
+                ['id' => $consignment->id, 'source' => 'consignment', 'quantity' => 1],
+            ],
+        ])
+        ->assertRedirect(route('picket.pos'))
+        ->assertSessionHasErrors('report');
+
+    expect(UpJurusanPosSale::query()->where('up_jurusan_id', $upJurusan->id)->count())->toBe(0);
+    expect($consignment->fresh()->sold_quantity)->toBe(1);
 });
 
 test('picket officer can update assigned up jurusan order item status', function () {

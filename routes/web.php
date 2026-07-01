@@ -73,8 +73,6 @@ Route::middleware(['auth', EnsureUserIsAdmin::class])->group(function () {
     Route::post('admin/seller-applications/{application}/approve', [SellerApplicationController::class, 'approve'])->name('admin.seller-applications.approve');
     Route::post('admin/seller-applications/{application}/reject', [SellerApplicationController::class, 'reject'])->name('admin.seller-applications.reject');
     Route::get('admin/orders', [AdminOrderController::class, 'index'])->name('admin.orders.index');
-    Route::post('admin/orders/{order}/payment/approve', [AdminOrderController::class, 'approvePayment'])->name('admin.orders.payment.approve');
-    Route::post('admin/orders/{order}/payment/reject', [AdminOrderController::class, 'rejectPayment'])->name('admin.orders.payment.reject');
 });
 
 Route::middleware(['auth', EnsureUserIsSeller::class])

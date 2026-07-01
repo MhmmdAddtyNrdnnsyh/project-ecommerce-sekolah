@@ -2,7 +2,10 @@
 
 use App\Enums\OrderItemStatus;
 use App\Enums\PaymentStatus;
+use App\Enums\ProductFulfillmentType;
+use App\Enums\ProductSalesMethod;
 use App\Enums\ProductStatus;
+use App\Enums\UpJurusanConsignmentStatus;
 use App\Enums\UserRole;
 use App\Models\Category;
 use App\Models\Order;
@@ -453,6 +456,54 @@ test('seller header notifications contain only current seller action items', fun
             ->where('sellerHeader.notifications.1.title', 'Pulpen Biru')
             ->where('sellerHeader.notifications.1.href', route('seller.inventory.index', ['q' => 'Pulpen Biru'], absolute: false))
             ->where('sellerHeader.supportEmail', config('mail.from.address')),
+        );
+});
+
+test('seller low stock notifications use real consignment stock', function () {
+    $seller = User::factory()->create(['role' => UserRole::Seller]);
+    $category = Category::factory()->create();
+    $upJurusan = UpJurusan::factory()->create();
+    Product::factory()->for($seller, 'seller')->for($category)->approved()->create([
+        'name' => 'Stiker Kelas Pre Order',
+        'stock' => 0,
+        'fulfillment_type' => ProductFulfillmentType::PreOrder,
+    ]);
+    $rawOutButRealNormal = Product::factory()->for($seller, 'seller')->for($category)->approved()->create([
+        'name' => 'Stok Titipan Normal',
+        'stock' => 0,
+        'sales_method' => ProductSalesMethod::UpJurusan,
+    ]);
+    $rawNormalButRealLow = Product::factory()->for($seller, 'seller')->for($category)->approved()->create([
+        'name' => 'Stok Titipan Menipis',
+        'stock' => 20,
+        'sales_method' => ProductSalesMethod::UpJurusan,
+    ]);
+
+    UpJurusanConsignment::factory()->create([
+        'seller_id' => $seller->id,
+        'product_id' => $rawOutButRealNormal->id,
+        'up_jurusan_id' => $upJurusan->id,
+        'received_quantity' => 8,
+        'sold_quantity' => 0,
+        'status' => UpJurusanConsignmentStatus::Received,
+    ]);
+    UpJurusanConsignment::factory()->create([
+        'seller_id' => $seller->id,
+        'product_id' => $rawNormalButRealLow->id,
+        'up_jurusan_id' => $upJurusan->id,
+        'received_quantity' => 5,
+        'sold_quantity' => 4,
+        'status' => UpJurusanConsignmentStatus::Received,
+    ]);
+
+    $this->actingAs($seller)
+        ->get(route('seller.dashboard'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->has('sellerHeader.notifications', 1)
+            ->where('sellerHeader.notifications.0.type', 'stock')
+            ->where('sellerHeader.notifications.0.title', 'Stok Titipan Menipis')
+            ->where('sellerHeader.notifications.0.description', 'Stok tersisa 1'),
         );
 });
 

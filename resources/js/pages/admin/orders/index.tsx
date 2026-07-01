@@ -218,8 +218,7 @@ export default function AdminOrdersIndex({ orders, filters }: Props) {
                                                                 }
                                                             >
                                                                 {
-                                                                    item
-                                                                        .payment
+                                                                    item.payment
                                                                         .status
                                                                         .label
                                                                 }

@@ -503,7 +503,7 @@ function NotificationItem({
     };
 
     return (
-        <div className="group flex items-start gap-2 rounded-[6px] hover:bg-blue-50 focus-within:bg-blue-50">
+        <div className="group flex items-start gap-2 rounded-[6px] focus-within:bg-blue-50 hover:bg-blue-50">
             <Link
                 href={notification.href}
                 className="flex min-w-0 flex-1 flex-col items-start gap-1 px-3 py-3 outline-none"

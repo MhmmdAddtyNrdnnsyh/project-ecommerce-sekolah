@@ -1,5 +1,10 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { ArrowLeft, CheckCircle2, PackageCheck, ShoppingCart } from 'lucide-react';
+import {
+    ArrowLeft,
+    CheckCircle2,
+    PackageCheck,
+    ShoppingCart,
+} from 'lucide-react';
 import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -14,12 +19,7 @@ import { cn } from '@/lib/utils';
 import { index as ordersIndex, updateStatus } from '@/routes/seller/orders';
 
 type OrderStatus =
-    | 'pending'
-    | 'in_production'
-    | 'ready'
-    | 'packed'
-    | 'sent'
-    | 'completed';
+    'pending' | 'in_production' | 'ready' | 'packed' | 'sent' | 'completed';
 
 type PaymentStatus = 'unpaid' | 'pending_confirmation' | 'paid' | 'rejected';
 
@@ -194,7 +194,10 @@ export default function SellerOrdersShow({ orderItem }: OrderDetailProps) {
             isOffline ? 'Hak seller' : 'Subtotal',
             formatRupiah(orderItem.subtotal),
         ],
-        ['Pembayaran', `${orderItem.payment.status.label} (${orderItem.payment.method.label})`],
+        [
+            'Pembayaran',
+            `${orderItem.payment.status.label} (${orderItem.payment.method.label})`,
+        ],
         ...(isOffline
             ? [
                   ['Omzet POS', formatRupiah(orderItem.gross_amount ?? 0)],
@@ -214,7 +217,9 @@ export default function SellerOrdersShow({ orderItem }: OrderDetailProps) {
 
     return (
         <>
-            <Head title={`Pesanan ${orderItem.code ?? `#${orderItem.order_id}`}`} />
+            <Head
+                title={`Pesanan ${orderItem.code ?? `#${orderItem.order_id}`}`}
+            />
             <main className="min-h-[calc(100svh-4rem)] bg-slate-50 p-4 sm:p-6">
                 <div className="mx-auto max-w-3xl space-y-6">
                     <section className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
@@ -309,8 +314,8 @@ export default function SellerOrdersShow({ orderItem }: OrderDetailProps) {
                                                     )}
                                                 >
                                                     {
-                                                        orderItem.payment
-                                                            .status.label
+                                                        orderItem.payment.status
+                                                            .label
                                                     }
                                                 </Badge>
                                             </div>
@@ -330,7 +335,7 @@ export default function SellerOrdersShow({ orderItem }: OrderDetailProps) {
                                                 </Button>
                                             )}
                                         </div>
-                                )}
+                                    )}
 
                                 {isOffline ? (
                                     <p className="text-sm font-medium text-slate-600">

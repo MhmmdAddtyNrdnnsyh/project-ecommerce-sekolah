@@ -2,14 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Enums\PaymentStatus;
 use App\Models\Order;
 use App\Models\OrderItem;
-use App\Models\User;
-use App\Support\OrderPaymentSync;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -109,65 +104,6 @@ class AdminOrderController extends Controller
                 'q' => $validated['q'] ?? '',
             ],
         ]);
-    }
-
-    public function approvePayment(Request $request, Order $order): RedirectResponse
-    {
-        /** @var User $admin */
-        $admin = $request->user();
-
-        DB::transaction(function () use ($order, $admin) {
-            /** @var Order $current */
-            $current = Order::query()
-                ->with('items:id,order_id,payment_status')
-                ->lockForUpdate()
-                ->findOrFail($order->id);
-
-            abort_unless($current->payment_status !== PaymentStatus::Paid, 422);
-
-            $current->items()->update([
-                'payment_status' => PaymentStatus::Paid->value,
-                'payment_confirmed_at' => now(),
-                'payment_confirmed_by' => $admin->id,
-                'payment_rejection_reason' => null,
-            ]);
-
-            OrderPaymentSync::sync($current);
-        });
-
-        return to_route('admin.orders.index')
-            ->with('success', "Pembayaran order {$order->code} berhasil di-override lunas.");
-    }
-
-    public function rejectPayment(Request $request, Order $order): RedirectResponse
-    {
-        $validated = $request->validate([
-            'payment_rejection_reason' => ['required', 'string', 'min:5', 'max:500'],
-        ]);
-
-        DB::transaction(function () use ($order, $validated) {
-            /** @var Order $current */
-            $current = Order::query()
-                ->with('items:id,order_id,payment_status')
-                ->lockForUpdate()
-                ->findOrFail($order->id);
-
-            abort_unless($current->payment_status !== PaymentStatus::Paid, 422);
-
-            $current->items()
-                ->where('payment_status', '!=', PaymentStatus::Paid->value)
-                ->update([
-                    'payment_status' => PaymentStatus::Rejected->value,
-                    'payment_confirmed_at' => null,
-                    'payment_confirmed_by' => null,
-                    'payment_rejection_reason' => $validated['payment_rejection_reason'],
-                ]);
-
-            OrderPaymentSync::sync($current);
-        });
-
-        return to_route('admin.orders.index')
-            ->with('success', "Pembayaran order {$order->code} ditolak.");
     }
 
     /**

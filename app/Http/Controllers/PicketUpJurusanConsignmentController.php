@@ -315,6 +315,7 @@ class PicketUpJurusanConsignmentController extends Controller
         /** @var User $picket */
         $picket = $request->user();
         $this->authorizePicket($picket, $consignment);
+        $this->ensureDailyReportIsOpen($picket);
 
         $quantity = $this->quantity($request);
 
@@ -345,6 +346,7 @@ class PicketUpJurusanConsignmentController extends Controller
     {
         /** @var User $picket */
         $picket = $request->user();
+        $this->ensureDailyReportIsOpen($picket);
 
         $validated = $request->validate([
             'items' => ['required', 'array', 'min:1'],
@@ -562,6 +564,21 @@ class PicketUpJurusanConsignmentController extends Controller
             ),
             403,
         );
+    }
+
+    private function ensureDailyReportIsOpen(User $picket): void
+    {
+        $reportSubmitted = UpJurusanDailyReport::query()
+            ->where('up_jurusan_id', $picket->up_jurusan_id)
+            ->whereDate('report_date', now()->toDateString())
+            ->whereNotNull('submitted_at')
+            ->exists();
+
+        if ($reportSubmitted) {
+            throw ValidationException::withMessages([
+                'report' => 'Laporan hari ini sudah dikirim. Transaksi POS baru tidak bisa dicatat setelah laporan dikirim.',
+            ]);
+        }
     }
 
     private function recordSale(User $picket, UpJurusanConsignment $consignment, int $quantity, ?UpJurusanPosSale $sale = null): int

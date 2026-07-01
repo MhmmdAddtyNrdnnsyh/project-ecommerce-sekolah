@@ -460,6 +460,7 @@ export default function PicketUpJurusanConsignments({
                                         </Button>
                                         <InputError
                                             message={
+                                                errors.report ??
                                                 errors.items ??
                                                 errors.quantity ??
                                                 errors['items.0.quantity']

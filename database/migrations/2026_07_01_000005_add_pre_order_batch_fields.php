@@ -23,7 +23,7 @@ return new class extends Migration
             $table->string('pre_order_note')->nullable()->after('pre_order_min_quantity');
         });
 
-        if (DB::connection()->getDriverName() !== 'sqlite') {
+        if (in_array(DB::connection()->getDriverName(), ['mysql', 'mariadb'], true)) {
             DB::statement("ALTER TABLE order_items MODIFY COLUMN status ENUM('".implode("','", OrderItemStatus::values())."') NOT NULL DEFAULT '".OrderItemStatus::Pending->value."'");
         }
     }
@@ -47,7 +47,7 @@ return new class extends Migration
             ]);
         });
 
-        if (DB::connection()->getDriverName() !== 'sqlite') {
+        if (in_array(DB::connection()->getDriverName(), ['mysql', 'mariadb'], true)) {
             $oldValues = ['pending', 'packed', 'sent', 'completed'];
             DB::statement("ALTER TABLE order_items MODIFY COLUMN status ENUM('".implode("','", $oldValues)."') NOT NULL DEFAULT '".OrderItemStatus::Pending->value."'");
         }
