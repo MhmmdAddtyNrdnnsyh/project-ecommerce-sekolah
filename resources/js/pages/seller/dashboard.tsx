@@ -19,9 +19,10 @@ import {
 } from 'lucide-react';
 import {
     Bar,
-    BarChart,
     CartesianGrid,
     Cell,
+    ComposedChart,
+    Line,
     Pie,
     PieChart,
     XAxis,
@@ -270,6 +271,9 @@ const formatRupiah = (value: number) =>
         maximumFractionDigits: 0,
     }).format(value);
 
+const formatNumber = (value: number) =>
+    new Intl.NumberFormat('id-ID').format(value);
+
 function StatCard({ stat }: { stat: StatCardData }) {
     const Icon = iconMap[stat.icon];
     const styles = toneStyles[stat.tone];
@@ -392,9 +396,10 @@ export default function SellerDashboard({
                                     config={salesConfig}
                                     className="aspect-auto h-72 w-full"
                                 >
-                                    <BarChart
+                                    <ComposedChart
                                         accessibilityLayer
                                         data={data.salesData}
+                                        barCategoryGap="34%"
                                         margin={{
                                             top: 12,
                                             right: 12,
@@ -410,31 +415,79 @@ export default function SellerDashboard({
                                             axisLine={false}
                                         />
                                         <YAxis
+                                            yAxisId="sales"
                                             tickLine={false}
                                             axisLine={false}
                                             tickMargin={10}
-                                            width={38}
+                                            width={68}
+                                            tickFormatter={(value) =>
+                                                `Rp ${formatNumber(
+                                                    Number(value) / 1000,
+                                                )}rb`
+                                            }
+                                        />
+                                        <YAxis
+                                            yAxisId="orders"
+                                            orientation="right"
+                                            tickLine={false}
+                                            axisLine={false}
+                                            tickMargin={10}
+                                            width={34}
+                                            allowDecimals={false}
                                         />
                                         <ChartTooltip
                                             cursor={false}
                                             content={
                                                 <ChartTooltipContent
                                                     indicator="dot"
+                                                    formatter={(
+                                                        value,
+                                                        name,
+                                                    ) => (
+                                                        <div className="flex min-w-36 flex-1 items-center justify-between gap-3">
+                                                            <span className="text-muted-foreground">
+                                                                {name ===
+                                                                'sales'
+                                                                    ? 'Omzet'
+                                                                    : 'Pesanan'}
+                                                            </span>
+                                                            <span className="font-mono font-medium text-foreground tabular-nums">
+                                                                {name ===
+                                                                'sales'
+                                                                    ? formatRupiah(
+                                                                          Number(
+                                                                              value,
+                                                                          ),
+                                                                      )
+                                                                    : formatNumber(
+                                                                          Number(
+                                                                              value,
+                                                                          ),
+                                                                      )}
+                                                            </span>
+                                                        </div>
+                                                    )}
                                                     className="rounded-[8px] bg-white text-slate-900 ring-slate-200"
                                                 />
                                             }
                                         />
                                         <Bar
+                                            yAxisId="sales"
                                             dataKey="sales"
                                             fill="var(--color-sales)"
                                             radius={[4, 4, 0, 0]}
+                                            maxBarSize={42}
                                         />
-                                        <Bar
+                                        <Line
+                                            yAxisId="orders"
+                                            type="monotone"
                                             dataKey="orders"
-                                            fill="var(--color-orders)"
-                                            radius={[4, 4, 0, 0]}
+                                            stroke="var(--color-orders)"
+                                            strokeWidth={2}
+                                            dot={{ r: 3 }}
+                                            activeDot={{ r: 5 }}
                                         />
-                                    </BarChart>
+                                    </ComposedChart>
                                 </ChartContainer>
                             </CardContent>
                         </Card>
@@ -461,6 +514,23 @@ export default function SellerDashboard({
                                                     <ChartTooltipContent
                                                         hideLabel
                                                         nameKey="status"
+                                                        formatter={(
+                                                            value,
+                                                            name,
+                                                        ) => (
+                                                            <div className="flex min-w-32 flex-1 items-center justify-between gap-3">
+                                                                <span className="text-muted-foreground">
+                                                                    {name}
+                                                                </span>
+                                                                <span className="font-mono font-medium text-foreground tabular-nums">
+                                                                    {formatNumber(
+                                                                        Number(
+                                                                            value,
+                                                                        ),
+                                                                    )}
+                                                                </span>
+                                                            </div>
+                                                        )}
                                                         className="rounded-[8px] bg-white text-slate-900 ring-slate-200"
                                                     />
                                                 }
@@ -545,6 +615,25 @@ export default function SellerDashboard({
                                                             <ChartTooltipContent
                                                                 hideLabel
                                                                 nameKey="label"
+                                                                formatter={(
+                                                                    value,
+                                                                    name,
+                                                                ) => (
+                                                                    <div className="flex min-w-36 flex-1 items-center justify-between gap-3">
+                                                                        <span className="text-muted-foreground">
+                                                                            {
+                                                                                name
+                                                                            }
+                                                                        </span>
+                                                                        <span className="font-mono font-medium text-foreground tabular-nums">
+                                                                            {formatRupiah(
+                                                                                Number(
+                                                                                    value,
+                                                                                ),
+                                                                            )}
+                                                                        </span>
+                                                                    </div>
+                                                                )}
                                                                 className="rounded-[8px] bg-white text-slate-900 ring-slate-200"
                                                             />
                                                         }

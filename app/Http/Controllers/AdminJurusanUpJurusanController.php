@@ -4,10 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Enums\ProductSalesMethod;
 use App\Enums\ProductStatus;
+use App\Enums\UpJurusanConsignmentStatus;
 use App\Enums\UserRole;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\UpJurusan;
+use App\Models\UpJurusanConsignment;
+use App\Models\UpJurusanStockMovement;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -38,32 +41,38 @@ class AdminJurusanUpJurusanController extends Controller
                 ->where('admin_jurusan_id', $adminJurusan->id)
                 ->latest()
                 ->get(['id', 'name', 'description', 'admin_jurusan_id'])
-                ->map(fn (UpJurusan $upJurusan) => [
-                    'id' => $upJurusan->id,
-                    'name' => $upJurusan->name,
-                    'description' => $upJurusan->description,
-                    'picket_officers' => $upJurusan->picketOfficers
-                        ->map(fn (User $picket) => [
-                            'id' => $picket->id,
-                            'name' => $picket->name,
-                            'email' => $picket->email,
-                            'up_jurusan_id' => $picket->up_jurusan_id,
-                        ])
-                        ->all(),
-                    'products' => $upJurusan->products
-                        ->map(fn (Product $product) => [
-                            'id' => $product->id,
-                            'name' => $product->name,
-                            'category_name' => $product->category->name,
-                            'price' => $product->price,
-                            'stock' => $product->stock,
-                            'status' => [
-                                'code' => $product->status->value,
-                                'label' => $product->status->label(),
-                            ],
-                        ])
-                        ->all(),
-                ])
+                ->map(function (UpJurusan $upJurusan) {
+                    $revenueChart = $this->revenueChart($upJurusan);
+
+                    return [
+                        'id' => $upJurusan->id,
+                        'name' => $upJurusan->name,
+                        'description' => $upJurusan->description,
+                        'picket_officers' => $upJurusan->picketOfficers
+                            ->map(fn (User $picket) => [
+                                'id' => $picket->id,
+                                'name' => $picket->name,
+                                'email' => $picket->email,
+                                'up_jurusan_id' => $picket->up_jurusan_id,
+                            ])
+                            ->all(),
+                        'products' => $upJurusan->products
+                            ->map(fn (Product $product) => [
+                                'id' => $product->id,
+                                'name' => $product->name,
+                                'category_name' => $product->category->name,
+                                'price' => $product->price,
+                                'stock' => $product->stock,
+                                'status' => [
+                                    'code' => $product->status->value,
+                                    'label' => $product->status->label(),
+                                ],
+                            ])
+                            ->all(),
+                        'revenue_chart' => $revenueChart,
+                        'summary' => $this->summary($upJurusan, $revenueChart),
+                    ];
+                })
                 ->all(),
             'picketOptions' => User::query()
                 ->where('role', UserRole::PicketOfficer)
@@ -255,5 +264,67 @@ class AdminJurusanUpJurusanController extends Controller
             ->where('role', UserRole::PicketOfficer)
             ->where('up_jurusan_id', $upJurusan->id)
             ->exists();
+    }
+
+    /**
+     * @return array<int, array{day: string, revenue: int}>
+     */
+    private function revenueChart(UpJurusan $upJurusan): array
+    {
+        $start = now()->subDays(6)->startOfDay();
+        $productRevenue = UpJurusanStockMovement::query()
+            ->where('type', 'out')
+            ->whereHas('product', fn ($query) => $query->where('up_jurusan_id', $upJurusan->id))
+            ->where('created_at', '>=', $start)
+            ->get(['created_at', 'gross_amount'])
+            ->groupBy(fn (UpJurusanStockMovement $movement) => $movement->created_at?->toDateString() ?? '');
+        $consignmentCommission = UpJurusanStockMovement::query()
+            ->where('type', 'out')
+            ->whereHas('consignment', fn ($query) => $query->where('up_jurusan_id', $upJurusan->id))
+            ->where('created_at', '>=', $start)
+            ->get(['created_at', 'commission_amount'])
+            ->groupBy(fn (UpJurusanStockMovement $movement) => $movement->created_at?->toDateString() ?? '');
+
+        return collect(range(6, 0))
+            ->map(function (int $daysAgo) use ($productRevenue, $consignmentCommission) {
+                $date = now()->subDays($daysAgo);
+                $key = $date->toDateString();
+
+                return [
+                    'day' => $date->translatedFormat('D'),
+                    'revenue' => (int) $productRevenue->get($key, collect())->sum('gross_amount')
+                        + (int) $consignmentCommission->get($key, collect())->sum('commission_amount'),
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  array<int, array{day: string, revenue: int}>  $revenueChart
+     * @return array{revenue_7_days: int, up_product_count: int, active_consignment_count: int, available_stock: int, picket_names: array<int, string>}
+     */
+    private function summary(UpJurusan $upJurusan, array $revenueChart): array
+    {
+        $activeConsignments = UpJurusanConsignment::query()
+            ->where('up_jurusan_id', $upJurusan->id)
+            ->whereIn('status', [
+                UpJurusanConsignmentStatus::Approved,
+                UpJurusanConsignmentStatus::Received,
+                UpJurusanConsignmentStatus::Completed,
+            ])
+            ->get(['received_quantity', 'sold_quantity']);
+
+        return [
+            'revenue_7_days' => (int) collect($revenueChart)->sum('revenue'),
+            'up_product_count' => $upJurusan->products->count(),
+            'active_consignment_count' => $activeConsignments->count(),
+            'available_stock' => (int) $upJurusan->products->sum('stock')
+                + (int) $activeConsignments->sum(fn (UpJurusanConsignment $consignment) => max(0, $consignment->received_quantity - $consignment->sold_quantity)),
+            'picket_names' => $upJurusan->picketOfficers
+                ->pluck('name')
+                ->values()
+                ->all(),
+        ];
     }
 }

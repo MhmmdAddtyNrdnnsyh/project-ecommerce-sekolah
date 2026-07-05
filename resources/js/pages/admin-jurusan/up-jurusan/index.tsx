@@ -1,6 +1,26 @@
 import { Form, Head, Link } from '@inertiajs/react';
-import { PackagePlus, ShieldCheck, UserPlus, Warehouse } from 'lucide-react';
+import {
+    ClipboardList,
+    PackagePlus,
+    ShieldCheck,
+    UserPlus,
+    Warehouse,
+} from 'lucide-react';
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 import { Button } from '@/components/ui/button';
+import {
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+} from '@/components/ui/card';
+import {
+    ChartContainer,
+    ChartTooltip,
+    ChartTooltipContent,
+} from '@/components/ui/chart';
+import type { ChartConfig } from '@/components/ui/chart';
 import { Input } from '@/components/ui/input';
 import {
     Select,
@@ -34,6 +54,17 @@ type Props = {
                 label: string;
             };
         }[];
+        revenue_chart: {
+            day: string;
+            revenue: number;
+        }[];
+        summary: {
+            revenue_7_days: number;
+            up_product_count: number;
+            active_consignment_count: number;
+            available_stock: number;
+            picket_names: string[];
+        };
     }[];
     picketOptions: {
         id: number;
@@ -53,6 +84,16 @@ const formatRupiah = (value: number) =>
         currency: 'IDR',
         maximumFractionDigits: 0,
     }).format(value);
+
+const formatNumber = (value: number) =>
+    new Intl.NumberFormat('id-ID').format(value);
+
+const revenueChartConfig = {
+    revenue: {
+        label: 'Omzet jurusan',
+        color: '#2563eb',
+    },
+} satisfies ChartConfig;
 
 export default function AdminJurusanUpJurusan({
     upJurusans,
@@ -108,6 +149,14 @@ export default function AdminJurusanUpJurusan({
                     </Form>
                 )}
 
+                {upJurusans.length > 0 && (
+                    <div className="space-y-4">
+                        {upJurusans.map((up) => (
+                            <UpJurusanOverview key={up.id} up={up} />
+                        ))}
+                    </div>
+                )}
+
                 <div className="overflow-hidden rounded-[8px] border border-slate-200 bg-white shadow-sm">
                     {upJurusans.map((up) => (
                         <UpJurusanItem
@@ -133,6 +182,158 @@ export default function AdminJurusanUpJurusan({
                 </div>
             </main>
         </>
+    );
+}
+
+function UpJurusanOverview({ up }: { up: Props['upJurusans'][number] }) {
+    return (
+        <section className="grid gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(320px,0.8fr)]">
+            <UpJurusanRevenueChart up={up} />
+            <UpJurusanSummary up={up} />
+        </section>
+    );
+}
+
+function UpJurusanRevenueChart({ up }: { up: Props['upJurusans'][number] }) {
+    return (
+        <Card className="gap-0 rounded-[8px] border-slate-100 py-0 shadow-sm">
+            <CardHeader className="p-5 pb-0">
+                <CardTitle>Omzet Jurusan</CardTitle>
+                <CardDescription>
+                    {up.name} - gross produk UP dan komisi titipan selama 7
+                    hari.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="p-5">
+                {up.revenue_chart.every((item) => item.revenue === 0) ? (
+                    <div className="grid h-64 place-items-center text-sm text-slate-500">
+                        Belum ada omzet jurusan dalam 7 hari terakhir.
+                    </div>
+                ) : (
+                    <ChartContainer
+                        config={revenueChartConfig}
+                        className="aspect-auto h-64 w-full"
+                    >
+                        <BarChart
+                            accessibilityLayer
+                            data={up.revenue_chart}
+                            barCategoryGap="34%"
+                            margin={{
+                                top: 12,
+                                right: 12,
+                                left: -18,
+                                bottom: 0,
+                            }}
+                        >
+                            <CartesianGrid vertical={false} />
+                            <XAxis
+                                dataKey="day"
+                                tickLine={false}
+                                tickMargin={10}
+                                axisLine={false}
+                            />
+                            <YAxis
+                                tickLine={false}
+                                axisLine={false}
+                                tickMargin={10}
+                                width={68}
+                                tickFormatter={(value) =>
+                                    `Rp ${formatNumber(Number(value) / 1000)}rb`
+                                }
+                            />
+                            <ChartTooltip
+                                cursor={false}
+                                content={
+                                    <ChartTooltipContent
+                                        indicator="dot"
+                                        formatter={(value) => (
+                                            <div className="flex min-w-36 flex-1 items-center justify-between gap-3">
+                                                <span className="text-muted-foreground">
+                                                    Omzet jurusan
+                                                </span>
+                                                <span className="font-mono font-medium text-foreground tabular-nums">
+                                                    {formatRupiah(
+                                                        Number(value),
+                                                    )}
+                                                </span>
+                                            </div>
+                                        )}
+                                        className="rounded-[8px] bg-white text-slate-900 ring-slate-200"
+                                    />
+                                }
+                            />
+                            <Bar
+                                dataKey="revenue"
+                                fill="var(--color-revenue)"
+                                radius={[4, 4, 0, 0]}
+                                maxBarSize={42}
+                            />
+                        </BarChart>
+                    </ChartContainer>
+                )}
+            </CardContent>
+        </Card>
+    );
+}
+
+function UpJurusanSummary({ up }: { up: Props['upJurusans'][number] }) {
+    const summaryItems = [
+        {
+            label: 'Omzet 7 hari',
+            value: formatRupiah(up.summary.revenue_7_days),
+        },
+        {
+            label: 'Produk UP aktif',
+            value: `${formatNumber(up.summary.up_product_count)} produk`,
+        },
+        {
+            label: 'Titipan aktif',
+            value: `${formatNumber(up.summary.active_consignment_count)} titipan`,
+        },
+        {
+            label: 'Stok tersedia',
+            value: `${formatNumber(up.summary.available_stock)} item`,
+        },
+    ];
+
+    return (
+        <Card className="gap-0 rounded-[8px] border-slate-100 py-0 shadow-sm">
+            <CardHeader className="p-5 pb-0">
+                <CardTitle>Ringkasan {up.name}</CardTitle>
+                <CardDescription>
+                    Snapshot operasional UP Jurusan untuk demo dan monitoring.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4 p-5">
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                    {summaryItems.map((item) => (
+                        <div
+                            key={item.label}
+                            className="rounded-[8px] border border-slate-100 bg-slate-50 p-3"
+                        >
+                            <p className="text-xs font-medium text-slate-500">
+                                {item.label}
+                            </p>
+                            <p className="mt-1 text-base font-semibold text-slate-950 tabular-nums">
+                                {item.value}
+                            </p>
+                        </div>
+                    ))}
+                </div>
+
+                <div className="rounded-[8px] border border-blue-100 bg-blue-50 p-3">
+                    <p className="flex items-center gap-2 text-sm font-medium text-blue-800">
+                        <ClipboardList className="size-4" />
+                        Picket bertugas
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-blue-700">
+                        {up.summary.picket_names.length > 0
+                            ? up.summary.picket_names.join(', ')
+                            : 'Belum ada picket officer.'}
+                    </p>
+                </div>
+            </CardContent>
+        </Card>
     );
 }
 

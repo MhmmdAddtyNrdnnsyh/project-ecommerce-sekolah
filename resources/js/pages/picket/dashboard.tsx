@@ -1,16 +1,7 @@
 import { Head, Link, usePage } from '@inertiajs/react';
 import { Package, ReceiptText, ShoppingCart, Store } from 'lucide-react';
 import type { ReactNode } from 'react';
-import {
-    Bar,
-    BarChart,
-    CartesianGrid,
-    Cell,
-    Pie,
-    PieChart,
-    XAxis,
-    YAxis,
-} from 'recharts';
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -59,6 +50,7 @@ type Consignment = {
     product_name: string;
     requested_quantity: number;
     received_quantity: number;
+    sold_quantity: number;
     status: { code: string; label: string };
 };
 
@@ -75,27 +67,14 @@ type Props = {
     };
 };
 
-const transactionChartConfig = {
-    total_amount: {
-        label: 'Nominal',
+const movementChartConfig = {
+    received_quantity: {
+        label: 'Barang masuk',
         color: '#2563eb',
     },
-    total_quantity: {
-        label: 'Item',
+    sold_quantity: {
+        label: 'Barang keluar',
         color: '#10b981',
-    },
-} satisfies ChartConfig;
-
-const stockChartConfig = {
-    available_quantity: {
-        label: 'Stok',
-        color: '#f59e0b',
-    },
-} satisfies ChartConfig;
-
-const sourceChartConfig = {
-    revenue: {
-        label: 'Nominal',
     },
 } satisfies ChartConfig;
 
@@ -105,6 +84,9 @@ const formatRupiah = (value: number) =>
         currency: 'IDR',
         maximumFractionDigits: 0,
     }).format(value);
+
+const formatNumber = (value: number) =>
+    new Intl.NumberFormat('id-ID').format(value);
 
 export default function PicketDashboard({
     up_jurusan,
@@ -121,48 +103,19 @@ export default function PicketDashboard({
             consignment.status.code === 'approved' &&
             consignment.received_quantity < consignment.requested_quantity,
     );
-    const transactionChartData = daily_report.items.map((item) => ({
-        code: item.code,
-        total_amount: item.total_amount,
-        total_quantity: item.total_quantity,
-    }));
-    const stockChartData = [...pos_products]
-        .sort((a, b) => b.available_quantity - a.available_quantity)
+    const movementChartData = [...consignments]
+        .filter(
+            (consignment) =>
+                consignment.received_quantity > 0 ||
+                consignment.sold_quantity > 0,
+        )
+        .sort(
+            (a, b) =>
+                b.received_quantity +
+                b.sold_quantity -
+                (a.received_quantity + a.sold_quantity),
+        )
         .slice(0, 6);
-    const sourceChartData = Object.values(
-        daily_report.items
-            .flatMap((transaction) => transaction.products)
-            .reduce<
-                Record<
-                    string,
-                    {
-                        source: string;
-                        label: string;
-                        quantity: number;
-                        revenue: number;
-                        fill: string;
-                    }
-                >
-            >((groups, item) => {
-                const key = item.source;
-
-                groups[key] ??= {
-                    source: key,
-                    label: key,
-                    quantity: 0,
-                    revenue: 0,
-                    fill: key === 'Produk UP' ? '#2563eb' : '#10b981',
-                };
-                groups[key].quantity += item.quantity;
-                groups[key].revenue += item.subtotal;
-
-                return groups;
-            }, {}),
-    );
-    const sourceRevenueTotal = sourceChartData.reduce(
-        (total, item) => total + item.revenue,
-        0,
-    );
 
     return (
         <>
@@ -222,28 +175,29 @@ export default function PicketDashboard({
                     />
                 </section>
 
-                <section className="grid gap-4 lg:grid-cols-3">
-                    <Card className="gap-0 rounded-[8px] border-slate-100 py-0 shadow-sm lg:col-span-2">
+                <section>
+                    <Card className="gap-0 rounded-[8px] border-slate-100 py-0 shadow-sm">
                         <CardHeader className="p-5 pb-0">
-                            <CardTitle>Transaksi POS Hari Ini</CardTitle>
+                            <CardTitle>Barang Masuk dan Keluar</CardTitle>
                             <CardDescription>
-                                Nominal dan jumlah item per nota yang dicatat
-                                picket.
+                                Perbandingan barang diterima dan barang terjual
+                                per produk titipan.
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="p-5">
-                            {transactionChartData.length === 0 ? (
+                            {movementChartData.length === 0 ? (
                                 <div className="grid h-72 place-items-center text-sm text-slate-500">
-                                    Belum ada transaksi POS hari ini.
+                                    Belum ada barang masuk atau keluar.
                                 </div>
                             ) : (
                                 <ChartContainer
-                                    config={transactionChartConfig}
+                                    config={movementChartConfig}
                                     className="aspect-auto h-72 w-full"
                                 >
                                     <BarChart
                                         accessibilityLayer
-                                        data={transactionChartData}
+                                        data={movementChartData}
+                                        barCategoryGap="26%"
                                         margin={{
                                             top: 12,
                                             right: 12,
@@ -253,7 +207,7 @@ export default function PicketDashboard({
                                     >
                                         <CartesianGrid vertical={false} />
                                         <XAxis
-                                            dataKey="code"
+                                            dataKey="product_name"
                                             tickLine={false}
                                             tickMargin={10}
                                             axisLine={false}
@@ -263,88 +217,48 @@ export default function PicketDashboard({
                                             axisLine={false}
                                             tickMargin={10}
                                             width={38}
+                                            allowDecimals={false}
                                         />
                                         <ChartTooltip
                                             cursor={false}
                                             content={
                                                 <ChartTooltipContent
                                                     indicator="dot"
+                                                    formatter={(
+                                                        value,
+                                                        name,
+                                                    ) => (
+                                                        <div className="flex min-w-32 flex-1 items-center justify-between gap-3">
+                                                            <span className="text-muted-foreground">
+                                                                {name ===
+                                                                'received_quantity'
+                                                                    ? 'Barang masuk'
+                                                                    : 'Barang keluar'}
+                                                            </span>
+                                                            <span className="font-mono font-medium text-foreground tabular-nums">
+                                                                {formatNumber(
+                                                                    Number(
+                                                                        value,
+                                                                    ),
+                                                                )}
+                                                            </span>
+                                                        </div>
+                                                    )}
                                                     className="rounded-[8px] bg-white text-slate-900 ring-slate-200"
                                                 />
                                             }
                                         />
                                         <Bar
-                                            dataKey="total_amount"
-                                            fill="var(--color-total_amount)"
+                                            dataKey="received_quantity"
+                                            fill="var(--color-received_quantity)"
                                             radius={[4, 4, 0, 0]}
+                                            maxBarSize={40}
                                         />
                                         <Bar
-                                            dataKey="total_quantity"
-                                            fill="var(--color-total_quantity)"
+                                            dataKey="sold_quantity"
+                                            fill="var(--color-sold_quantity)"
                                             radius={[4, 4, 0, 0]}
-                                        />
-                                    </BarChart>
-                                </ChartContainer>
-                            )}
-                        </CardContent>
-                    </Card>
-
-                    <Card className="gap-0 rounded-[8px] border-slate-100 py-0 shadow-sm">
-                        <CardHeader className="p-5 pb-0">
-                            <CardTitle>Stok POS Tersedia</CardTitle>
-                            <CardDescription>
-                                Produk dengan stok terbanyak di terminal POS.
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent className="p-5">
-                            {stockChartData.length === 0 ? (
-                                <div className="grid h-72 place-items-center text-sm text-slate-500">
-                                    Belum ada produk siap jual.
-                                </div>
-                            ) : (
-                                <ChartContainer
-                                    config={stockChartConfig}
-                                    className="aspect-auto h-72 w-full"
-                                >
-                                    <BarChart
-                                        accessibilityLayer
-                                        data={stockChartData}
-                                        layout="vertical"
-                                        margin={{
-                                            top: 12,
-                                            right: 12,
-                                            left: 8,
-                                            bottom: 0,
-                                        }}
-                                    >
-                                        <CartesianGrid horizontal={false} />
-                                        <XAxis
-                                            type="number"
-                                            tickLine={false}
-                                            axisLine={false}
-                                            tickMargin={10}
-                                        />
-                                        <YAxis
-                                            dataKey="product_name"
-                                            type="category"
-                                            tickLine={false}
-                                            axisLine={false}
-                                            tickMargin={10}
-                                            width={88}
-                                        />
-                                        <ChartTooltip
-                                            cursor={false}
-                                            content={
-                                                <ChartTooltipContent
-                                                    indicator="dot"
-                                                    className="rounded-[8px] bg-white text-slate-900 ring-slate-200"
-                                                />
-                                            }
-                                        />
-                                        <Bar
-                                            dataKey="available_quantity"
-                                            fill="var(--color-available_quantity)"
-                                            radius={[0, 4, 4, 0]}
+                                            maxBarSize={40}
                                         />
                                     </BarChart>
                                 </ChartContainer>
@@ -353,110 +267,7 @@ export default function PicketDashboard({
                     </Card>
                 </section>
 
-                <section className="grid gap-4 lg:grid-cols-[1fr_1.2fr]">
-                    <Card className="gap-0 rounded-[8px] border-slate-100 py-0 shadow-sm">
-                        <CardHeader className="p-5 pb-0">
-                            <CardTitle>Sumber Penjualan POS</CardTitle>
-                            <CardDescription>
-                                Proporsi penjualan antara produk UP dan titipan
-                                seller hari ini.
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent className="flex flex-col items-center p-5">
-                            {sourceRevenueTotal === 0 ? (
-                                <div className="grid h-56 place-items-center text-center text-sm text-slate-500">
-                                    Belum ada sumber penjualan untuk
-                                    divisualkan.
-                                </div>
-                            ) : (
-                                <>
-                                    <div className="relative size-56">
-                                        <ChartContainer
-                                            config={sourceChartConfig}
-                                            className="aspect-square size-full"
-                                        >
-                                            <PieChart>
-                                                <ChartTooltip
-                                                    cursor={false}
-                                                    content={
-                                                        <ChartTooltipContent
-                                                            hideLabel
-                                                            nameKey="label"
-                                                            className="rounded-[8px] bg-white text-slate-900 ring-slate-200"
-                                                        />
-                                                    }
-                                                />
-                                                <Pie
-                                                    data={sourceChartData}
-                                                    dataKey="revenue"
-                                                    nameKey="label"
-                                                    innerRadius={58}
-                                                    outerRadius={86}
-                                                    paddingAngle={2}
-                                                    strokeWidth={3}
-                                                >
-                                                    {sourceChartData.map(
-                                                        (entry) => (
-                                                            <Cell
-                                                                key={
-                                                                    entry.source
-                                                                }
-                                                                fill={
-                                                                    entry.fill
-                                                                }
-                                                            />
-                                                        ),
-                                                    )}
-                                                </Pie>
-                                            </PieChart>
-                                        </ChartContainer>
-                                        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
-                                            <span className="text-xs font-medium text-slate-500">
-                                                Total
-                                            </span>
-                                            <span className="text-lg font-semibold text-slate-800 tabular-nums">
-                                                {formatRupiah(
-                                                    sourceRevenueTotal,
-                                                )}
-                                            </span>
-                                        </div>
-                                    </div>
-                                    <div className="mt-4 grid w-full gap-3">
-                                        {sourceChartData.map((item) => (
-                                            <div
-                                                key={item.source}
-                                                className="rounded-[8px] border border-slate-100 p-3"
-                                            >
-                                                <div className="flex items-center justify-between gap-3">
-                                                    <span className="flex min-w-0 items-center gap-2 text-sm font-medium text-slate-700">
-                                                        <span
-                                                            className="size-3 shrink-0 rounded-full"
-                                                            style={{
-                                                                backgroundColor:
-                                                                    item.fill,
-                                                            }}
-                                                        />
-                                                        <span className="truncate">
-                                                            {item.label}
-                                                        </span>
-                                                    </span>
-                                                    <span className="text-sm font-semibold text-slate-950 tabular-nums">
-                                                        {formatRupiah(
-                                                            item.revenue,
-                                                        )}
-                                                    </span>
-                                                </div>
-                                                <p className="mt-1 text-xs text-slate-500 tabular-nums">
-                                                    {item.quantity} item terjual
-                                                </p>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </>
-                            )}
-                        </CardContent>
-                    </Card>
-
+                <section>
                     <Card className="gap-0 rounded-[8px] border-slate-100 py-0 shadow-sm">
                         <CardHeader className="p-5 pb-0">
                             <CardTitle>Ringkasan Setoran Hari Ini</CardTitle>
