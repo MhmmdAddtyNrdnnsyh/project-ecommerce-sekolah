@@ -122,7 +122,7 @@ class AdminDashboardController extends Controller
                 'title' => $product->name,
                 'owner' => $product->seller->name,
                 'status' => 'Menunggu',
-                'age' => $product->created_at?->diffForHumans() ?? '-',
+                'age' => $product->created_at?->settings(['locale' => 'id'])->diffForHumans() ?? '-',
                 'href' => route('admin.products.moderation.index', absolute: false),
                 'created_at' => $product->created_at->timestamp,
             ]);
@@ -139,7 +139,7 @@ class AdminDashboardController extends Controller
                 'title' => $application->store_name,
                 'owner' => $application->user->name,
                 'status' => 'Menunggu',
-                'age' => $application->created_at?->diffForHumans() ?? '-',
+                'age' => $application->created_at?->settings(['locale' => 'id'])->diffForHumans() ?? '-',
                 'href' => route('admin.seller-applications.index', absolute: false),
                 'created_at' => $application->created_at->timestamp,
             ]);
@@ -169,7 +169,7 @@ class AdminDashboardController extends Controller
             ->map(fn (User $user) => [
                 'title' => 'User baru terdaftar',
                 'detail' => $user->name.' terdaftar sebagai '.$user->role->label().'.',
-                'time' => $user->created_at?->diffForHumans() ?? '-',
+                'time' => $user->created_at?->settings(['locale' => 'id'])->diffForHumans() ?? '-',
                 'icon' => $this->activityIcon($user->role),
                 'tone' => $this->activityTone($user->role),
             ])

@@ -145,10 +145,7 @@ export function AppSidebarHeader({
     const [search, setSearch] = useState('');
     const getInitials = useInitials();
     const currentBreadcrumb = breadcrumbs[breadcrumbs.length - 1];
-    const title =
-        currentBreadcrumb?.title === 'Dashboard'
-            ? 'Dashboard Overview'
-            : (currentBreadcrumb?.title ?? 'Dashboard Overview');
+    const title = currentBreadcrumb?.title ?? 'Dashboard';
     const userRole = auth.user?.role ? roleLabels[auth.user.role] : undefined;
     const query = search.trim();
     const role = auth.user?.role;

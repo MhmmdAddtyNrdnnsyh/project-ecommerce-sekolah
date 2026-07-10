@@ -126,7 +126,7 @@ export function AppSidebar() {
                                             {item.icon && <item.icon />}
                                             <span>{item.title}</span>
                                             {auth.user?.role === 'buyer' &&
-                                                item.title === 'Cart' &&
+                                                item.title === 'Keranjang' &&
                                                 Boolean(
                                                     buyerHeader?.cartItemsCount,
                                                 ) && (
@@ -152,14 +152,14 @@ export function AppSidebar() {
                             <SidebarMenuButton
                                 asChild
                                 tooltip={{
-                                    children: 'Settings',
+                                    children: 'Pengaturan',
                                     ...lightTooltip,
                                 }}
                                 className="h-11 rounded-[8px] px-3 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
                             >
                                 <Link href={edit()} prefetch>
                                     <Settings />
-                                    <span>Settings</span>
+                                    <span>Pengaturan</span>
                                 </Link>
                             </SidebarMenuButton>
                         </SidebarMenuItem>
@@ -181,9 +181,9 @@ function getMainNavItems(
                 href: dashboardHref,
                 icon: LayoutDashboard,
             },
-            { title: 'Products', href: sellerProductsIndex(), icon: Package },
-            { title: 'Orders', href: sellerOrdersIndex(), icon: ShoppingCart },
-            { title: 'Inventory', href: sellerInventoryIndex(), icon: Boxes },
+            { title: 'Produk', href: sellerProductsIndex(), icon: Package },
+            { title: 'Pesanan', href: sellerOrdersIndex(), icon: ShoppingCart },
+            { title: 'Inventori', href: sellerInventoryIndex(), icon: Boxes },
             {
                 title: 'Titip Barang',
                 href: '/seller/consignments',
@@ -200,12 +200,12 @@ function getMainNavItems(
                 icon: Package,
             },
             {
-                title: 'Cart',
+                title: 'Keranjang',
                 href: cartIndex(),
                 icon: ShoppingCart,
             },
             {
-                title: 'Orders',
+                title: 'Pesanan',
                 href: ordersIndex(),
                 icon: ShoppingCart,
             },
@@ -240,7 +240,7 @@ function getMainNavItems(
                 icon: UserRoundCheck,
             },
             {
-                title: 'Request Titip',
+                title: 'Pengajuan Titip',
                 href: '/admin-jurusan/consignments',
                 icon: ClipboardCheck,
             },
@@ -270,12 +270,12 @@ function getMainNavItems(
                 icon: ClipboardCheck,
             },
             {
-                title: 'Orders',
+                title: 'Pesanan',
                 href: '/picket/orders',
                 icon: ClipboardList,
             },
             {
-                title: 'Reports',
+                title: 'Laporan',
                 href: '/picket/reports',
                 icon: FileText,
             },
@@ -298,9 +298,9 @@ function getMainNavItems(
             href: '/admin/seller-applications',
             icon: Store,
         },
-        { title: 'Products', href: '/admin/products', icon: Package },
-        { title: 'Categories', href: '/admin/categories', icon: Tags },
-        { title: 'Orders', href: '/admin/orders', icon: ShoppingCart },
-        { title: 'Users', href: '/admin/users', icon: Users },
+        { title: 'Produk', href: '/admin/products', icon: Package },
+        { title: 'Kategori', href: '/admin/categories', icon: Tags },
+        { title: 'Pesanan', href: '/admin/orders', icon: ShoppingCart },
+        { title: 'Pengguna', href: '/admin/users', icon: Users },
     ];
 }

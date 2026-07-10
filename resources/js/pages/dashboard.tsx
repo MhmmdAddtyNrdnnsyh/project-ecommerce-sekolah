@@ -114,6 +114,10 @@ function StatCard({
 }
 
 export default function Dashboard({ dashboard: data }: DashboardProps) {
+    const hasOrderActivity = data.orderTrendData.some(
+        (item) => item.orders > 0,
+    );
+
     return (
         <>
             <Head title="Dashboard Admin" />
@@ -229,76 +233,85 @@ export default function Dashboard({ dashboard: data }: DashboardProps) {
                                 </CardDescription>
                             </CardHeader>
                             <CardContent className="p-5">
-                                <ChartContainer
-                                    config={orderTrendConfig}
-                                    className="aspect-auto h-72 w-full"
-                                >
-                                    <AreaChart
-                                        accessibilityLayer
-                                        data={data.orderTrendData}
-                                        margin={{
-                                            left: -18,
-                                            right: 12,
-                                            top: 12,
-                                        }}
+                                {!hasOrderActivity ? (
+                                    <div className="grid h-72 place-items-center text-center text-sm text-slate-500">
+                                        Belum ada aktivitas pesanan pada periode
+                                        ini.
+                                    </div>
+                                ) : (
+                                    <ChartContainer
+                                        config={orderTrendConfig}
+                                        className="aspect-auto h-72 w-full"
                                     >
-                                        <defs>
-                                            <linearGradient
-                                                id="admin-orders"
-                                                x1="0"
-                                                y1="0"
-                                                x2="0"
-                                                y2="1"
-                                            >
-                                                <stop
-                                                    offset="5%"
-                                                    stopColor="var(--color-orders)"
-                                                    stopOpacity={0.3}
-                                                />
-                                                <stop
-                                                    offset="95%"
-                                                    stopColor="var(--color-orders)"
-                                                    stopOpacity={0.02}
-                                                />
-                                            </linearGradient>
-                                        </defs>
-                                        <CartesianGrid vertical={false} />
-                                        <XAxis
-                                            dataKey="month"
-                                            tickLine={false}
-                                            axisLine={false}
-                                            tickMargin={10}
-                                        />
-                                        <YAxis
-                                            allowDecimals={false}
-                                            tickLine={false}
-                                            axisLine={false}
-                                            width={38}
-                                        />
-                                        <ChartTooltip
-                                            cursor={false}
-                                            content={
-                                                <ChartTooltipContent
-                                                    formatter={(value) => (
-                                                        <span className="font-mono font-medium">
-                                                            {formatNumber(
-                                                                Number(value),
-                                                            )}{' '}
-                                                            order
-                                                        </span>
-                                                    )}
-                                                />
-                                            }
-                                        />
-                                        <Area
-                                            type="monotone"
-                                            dataKey="orders"
-                                            stroke="var(--color-orders)"
-                                            fill="url(#admin-orders)"
-                                            strokeWidth={2}
-                                        />
-                                    </AreaChart>
-                                </ChartContainer>
+                                        <AreaChart
+                                            accessibilityLayer
+                                            data={data.orderTrendData}
+                                            margin={{
+                                                left: -18,
+                                                right: 12,
+                                                top: 12,
+                                            }}
+                                        >
+                                            <defs>
+                                                <linearGradient
+                                                    id="admin-orders"
+                                                    x1="0"
+                                                    y1="0"
+                                                    x2="0"
+                                                    y2="1"
+                                                >
+                                                    <stop
+                                                        offset="5%"
+                                                        stopColor="var(--color-orders)"
+                                                        stopOpacity={0.3}
+                                                    />
+                                                    <stop
+                                                        offset="95%"
+                                                        stopColor="var(--color-orders)"
+                                                        stopOpacity={0.02}
+                                                    />
+                                                </linearGradient>
+                                            </defs>
+                                            <CartesianGrid vertical={false} />
+                                            <XAxis
+                                                dataKey="month"
+                                                tickLine={false}
+                                                axisLine={false}
+                                                tickMargin={10}
+                                            />
+                                            <YAxis
+                                                allowDecimals={false}
+                                                tickLine={false}
+                                                axisLine={false}
+                                                width={38}
+                                            />
+                                            <ChartTooltip
+                                                cursor={false}
+                                                content={
+                                                    <ChartTooltipContent
+                                                        formatter={(value) => (
+                                                            <span className="font-mono font-medium">
+                                                                {formatNumber(
+                                                                    Number(
+                                                                        value,
+                                                                    ),
+                                                                )}{' '}
+                                                                order
+                                                            </span>
+                                                        )}
+                                                    />
+                                                }
+                                            />
+                                            <Area
+                                                type="monotone"
+                                                dataKey="orders"
+                                                stroke="var(--color-orders)"
+                                                fill="url(#admin-orders)"
+                                                strokeWidth={2}
+                                            />
+                                        </AreaChart>
+                                    </ChartContainer>
+                                )}
                             </CardContent>
                         </Card>
 

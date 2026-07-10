@@ -6,7 +6,9 @@ import {
     UserPlus,
     Warehouse,
 } from 'lucide-react';
+import { useState } from 'react';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
+import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -21,7 +23,18 @@ import {
     ChartTooltipContent,
 } from '@/components/ui/chart';
 import type { ChartConfig } from '@/components/ui/chart';
+import {
+    Dialog,
+    DialogClose,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
     Select,
     SelectContent,
@@ -345,6 +358,7 @@ function UpJurusanItem({
     categories: Props['categories'];
 }) {
     const hasPicket = up.picket_officers.length > 0;
+    const [isProductDialogOpen, setIsProductDialogOpen] = useState(false);
 
     return (
         <div className="border-b border-slate-100 p-4 last:border-b-0">
@@ -400,9 +414,205 @@ function UpJurusanItem({
 
             <div className="mt-4 border-t border-slate-100 pt-4">
                 <div className="mb-4">
-                    <div className="mb-3 flex items-center gap-2 text-sm font-medium text-slate-700">
-                        <Warehouse className="size-4 text-slate-500" />
-                        Produk Milik {up.name}
+                    <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                            <Warehouse className="size-4 text-slate-500" />
+                            Produk Milik {up.name}
+                        </div>
+                        <Dialog
+                            open={isProductDialogOpen}
+                            onOpenChange={setIsProductDialogOpen}
+                        >
+                            <DialogTrigger asChild>
+                                <Button size="sm" className="w-full sm:w-auto">
+                                    <PackagePlus className="size-4" />
+                                    Tambah Produk UP
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
+                                <DialogHeader>
+                                    <DialogTitle>Tambah Produk UP</DialogTitle>
+                                    <DialogDescription>
+                                        Tambahkan produk milik {up.name} untuk
+                                        dijual melalui POS UP Jurusan.
+                                    </DialogDescription>
+                                </DialogHeader>
+                                <Form
+                                    action="/admin-jurusan/products"
+                                    method="post"
+                                    resetOnSuccess
+                                    onSuccess={() =>
+                                        setIsProductDialogOpen(false)
+                                    }
+                                    className="space-y-4"
+                                >
+                                    {({ errors, processing }) => (
+                                        <>
+                                            <input
+                                                type="hidden"
+                                                name="up_jurusan_id"
+                                                value={up.id}
+                                                readOnly
+                                            />
+                                            <div className="grid gap-4 sm:grid-cols-2">
+                                                <div className="grid gap-2">
+                                                    <Label
+                                                        htmlFor={`product-name-${up.id}`}
+                                                    >
+                                                        Nama produk
+                                                    </Label>
+                                                    <Input
+                                                        id={`product-name-${up.id}`}
+                                                        name="name"
+                                                        placeholder="Nama produk UP"
+                                                        required
+                                                        aria-invalid={Boolean(
+                                                            errors.name,
+                                                        )}
+                                                    />
+                                                    <InputError
+                                                        message={errors.name}
+                                                    />
+                                                </div>
+                                                <div className="grid gap-2">
+                                                    <Label
+                                                        htmlFor={`product-category-${up.id}`}
+                                                    >
+                                                        Kategori
+                                                    </Label>
+                                                    <Select
+                                                        name="category_id"
+                                                        required
+                                                    >
+                                                        <SelectTrigger
+                                                            id={`product-category-${up.id}`}
+                                                            aria-invalid={Boolean(
+                                                                errors.category_id,
+                                                            )}
+                                                            className="w-full rounded-[8px] border-slate-200 bg-white"
+                                                        >
+                                                            <SelectValue placeholder="Pilih kategori" />
+                                                        </SelectTrigger>
+                                                        <SelectContent className="rounded-[8px] bg-white text-slate-900 ring-slate-200">
+                                                            <SelectGroup>
+                                                                <SelectLabel>
+                                                                    Kategori
+                                                                </SelectLabel>
+                                                                {categories.map(
+                                                                    (
+                                                                        category,
+                                                                    ) => (
+                                                                        <SelectItem
+                                                                            key={
+                                                                                category.id
+                                                                            }
+                                                                            value={String(
+                                                                                category.id,
+                                                                            )}
+                                                                        >
+                                                                            {
+                                                                                category.name
+                                                                            }
+                                                                        </SelectItem>
+                                                                    ),
+                                                                )}
+                                                            </SelectGroup>
+                                                        </SelectContent>
+                                                    </Select>
+                                                    <InputError
+                                                        message={
+                                                            errors.category_id
+                                                        }
+                                                    />
+                                                </div>
+                                                <div className="grid gap-2 sm:col-span-2">
+                                                    <Label
+                                                        htmlFor={`product-description-${up.id}`}
+                                                    >
+                                                        Deskripsi
+                                                    </Label>
+                                                    <Input
+                                                        id={`product-description-${up.id}`}
+                                                        name="description"
+                                                        placeholder="Deskripsi produk"
+                                                        required
+                                                        aria-invalid={Boolean(
+                                                            errors.description,
+                                                        )}
+                                                    />
+                                                    <InputError
+                                                        message={
+                                                            errors.description
+                                                        }
+                                                    />
+                                                </div>
+                                                <div className="grid gap-2">
+                                                    <Label
+                                                        htmlFor={`product-price-${up.id}`}
+                                                    >
+                                                        Harga
+                                                    </Label>
+                                                    <Input
+                                                        id={`product-price-${up.id}`}
+                                                        name="price"
+                                                        type="number"
+                                                        min="1"
+                                                        placeholder="Harga"
+                                                        required
+                                                        aria-invalid={Boolean(
+                                                            errors.price,
+                                                        )}
+                                                    />
+                                                    <InputError
+                                                        message={errors.price}
+                                                    />
+                                                </div>
+                                                <div className="grid gap-2">
+                                                    <Label
+                                                        htmlFor={`product-stock-${up.id}`}
+                                                    >
+                                                        Stok awal
+                                                    </Label>
+                                                    <Input
+                                                        id={`product-stock-${up.id}`}
+                                                        name="stock"
+                                                        type="number"
+                                                        min="0"
+                                                        placeholder="Stok"
+                                                        required
+                                                        aria-invalid={Boolean(
+                                                            errors.stock,
+                                                        )}
+                                                    />
+                                                    <InputError
+                                                        message={errors.stock}
+                                                    />
+                                                </div>
+                                            </div>
+                                            <DialogFooter>
+                                                <DialogClose asChild>
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        disabled={processing}
+                                                    >
+                                                        Batal
+                                                    </Button>
+                                                </DialogClose>
+                                                <Button
+                                                    type="submit"
+                                                    disabled={processing}
+                                                >
+                                                    {processing
+                                                        ? 'Menyimpan...'
+                                                        : 'Tambah Produk'}
+                                                </Button>
+                                            </DialogFooter>
+                                        </>
+                                    )}
+                                </Form>
+                            </DialogContent>
+                        </Dialog>
                     </div>
                     {up.products.length === 0 ? (
                         <div className="rounded-[8px] border border-dashed border-slate-200 p-4 text-sm text-slate-500">
@@ -460,68 +670,6 @@ function UpJurusanItem({
                             </table>
                         </div>
                     )}
-                </div>
-
-                <div className="border-t border-slate-100 pt-4">
-                    <div className="mb-3 flex items-center gap-2 text-sm font-medium text-slate-700">
-                        <PackagePlus className="size-4 text-slate-500" />
-                        Tambah Produk UP
-                    </div>
-                    <Form
-                        action="/admin-jurusan/products"
-                        method="post"
-                        className="grid gap-3 md:grid-cols-2"
-                    >
-                        <input
-                            type="hidden"
-                            name="up_jurusan_id"
-                            value={up.id}
-                            readOnly
-                        />
-                        <Input
-                            name="name"
-                            placeholder="Nama produk UP"
-                            required
-                        />
-                        <Select name="category_id" required>
-                            <SelectTrigger className="rounded-[8px] border-slate-200 bg-white">
-                                <SelectValue placeholder="Pilih kategori" />
-                            </SelectTrigger>
-                            <SelectContent className="rounded-[8px] bg-white text-slate-900 ring-slate-200">
-                                <SelectGroup>
-                                    <SelectLabel>Kategori</SelectLabel>
-                                    {categories.map((category) => (
-                                        <SelectItem
-                                            key={category.id}
-                                            value={String(category.id)}
-                                        >
-                                            {category.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectGroup>
-                            </SelectContent>
-                        </Select>
-                        <Input
-                            name="description"
-                            placeholder="Deskripsi produk"
-                            required
-                        />
-                        <Input
-                            name="price"
-                            type="number"
-                            min="1"
-                            placeholder="Harga"
-                            required
-                        />
-                        <Input
-                            name="stock"
-                            type="number"
-                            min="0"
-                            placeholder="Stok"
-                            required
-                        />
-                        <Button type="submit">Tambah Produk</Button>
-                    </Form>
                 </div>
             </div>
         </div>

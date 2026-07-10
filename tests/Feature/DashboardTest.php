@@ -79,6 +79,26 @@ test('admin dashboard includes pending seller applications in its factual action
         );
 });
 
+test('admin dashboard relative times use Indonesian', function () {
+    $this->travelTo('2026-07-10 12:00:00');
+
+    $admin = User::factory()->create(['role' => UserRole::Admin]);
+    $seller = User::factory()->create(['role' => UserRole::Seller]);
+    $category = Category::factory()->create();
+    Product::factory()->for($seller, 'seller')->for($category)->create([
+        'status' => ProductStatus::Pending,
+        'created_at' => now()->subMinutes(6),
+        'updated_at' => now()->subMinutes(6),
+    ]);
+
+    $this->actingAs($admin)
+        ->get(route('dashboard'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('dashboard.adminQueue.0.age', '6 menit yang lalu'),
+        );
+});
+
 test('admin dashboard uses real product and order data', function () {
     $admin = User::factory()->create(['role' => UserRole::Admin]);
     $seller = User::factory()->create(['role' => UserRole::Seller]);

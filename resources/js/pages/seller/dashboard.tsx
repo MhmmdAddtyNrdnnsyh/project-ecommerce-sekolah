@@ -5,6 +5,7 @@ import {
     ArrowUpRight,
     BadgeDollarSign,
     Boxes,
+    ChevronRight,
     Clock3,
     Package,
     ShoppingBag,
@@ -235,6 +236,10 @@ export default function SellerDashboard({
                                     <p className="mt-2 text-2xl font-semibold text-slate-950 tabular-nums">
                                         {item.value}
                                     </p>
+                                    <span className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-blue-700">
+                                        Lihat pesanan
+                                        <ChevronRight className="size-3.5" />
+                                    </span>
                                 </Link>
                             ))}
                         </div>
@@ -261,25 +266,28 @@ export default function SellerDashboard({
                                         return (
                                             <div
                                                 key={task.title}
-                                                className="flex items-center gap-3 rounded-[8px] border border-slate-100 p-3"
+                                                className="flex flex-col items-stretch gap-3 rounded-[8px] border border-slate-100 p-3 sm:flex-row sm:items-center"
                                             >
-                                                <span
-                                                    className={`grid size-9 shrink-0 place-items-center rounded-[8px] ${toneStyles[task.tone]}`}
-                                                >
-                                                    <Icon className="size-4" />
-                                                </span>
-                                                <div className="min-w-0 flex-1">
-                                                    <p className="text-sm font-semibold text-slate-950">
-                                                        {task.title}
-                                                    </p>
-                                                    <p className="text-xs text-slate-500">
-                                                        {task.detail}
-                                                    </p>
+                                                <div className="flex min-w-0 items-start gap-3 sm:flex-1 sm:items-center">
+                                                    <span
+                                                        className={`grid size-9 shrink-0 place-items-center rounded-[8px] ${toneStyles[task.tone]}`}
+                                                    >
+                                                        <Icon className="size-4" />
+                                                    </span>
+                                                    <div className="min-w-0 flex-1">
+                                                        <p className="text-sm font-semibold text-slate-950">
+                                                            {task.title}
+                                                        </p>
+                                                        <p className="text-xs text-slate-500">
+                                                            {task.detail}
+                                                        </p>
+                                                    </div>
                                                 </div>
                                                 <Button
                                                     asChild
                                                     size="sm"
                                                     variant="outline"
+                                                    className="w-full sm:w-auto"
                                                 >
                                                     <Link
                                                         href={taskHref(
@@ -417,11 +425,19 @@ export default function SellerDashboard({
                                             content={
                                                 <ChartTooltipContent
                                                     formatter={(value) => (
-                                                        <span className="font-mono font-medium">
-                                                            {formatRupiah(
-                                                                Number(value),
-                                                            )}
-                                                        </span>
+                                                        <div className="flex min-w-40 flex-1 items-center justify-between gap-3">
+                                                            <span className="text-muted-foreground">
+                                                                Pendapatan
+                                                                seller
+                                                            </span>
+                                                            <span className="font-mono font-medium">
+                                                                {formatRupiah(
+                                                                    Number(
+                                                                        value,
+                                                                    ),
+                                                                )}
+                                                            </span>
+                                                        </div>
                                                     )}
                                                 />
                                             }
