@@ -248,23 +248,35 @@ test('admin jurusan cannot assign picket officer to another admin jurusan up', f
 });
 
 test('admin jurusan can view scoped dashboard summary', function () {
+    $this->travelTo('2026-06-25 12:00:00');
+
     $adminJurusan = User::factory()->create(['role' => UserRole::AdminJurusan]);
     $ownUp = UpJurusan::factory()->create(['admin_jurusan_id' => $adminJurusan->id]);
     $otherUp = UpJurusan::factory()->create();
 
-    UpJurusanConsignment::factory()->create([
+    $oldestPending = UpJurusanConsignment::factory()->create([
         'up_jurusan_id' => $ownUp->id,
         'requested_quantity' => 10,
         'received_quantity' => 0,
         'sold_quantity' => 0,
         'status' => UpJurusanConsignmentStatus::PendingApproval,
+        'created_at' => '2026-06-20 09:00:00',
     ]);
-    UpJurusanConsignment::factory()->create([
+    $received = UpJurusanConsignment::factory()->create([
         'up_jurusan_id' => $ownUp->id,
         'requested_quantity' => 8,
         'received_quantity' => 5,
         'sold_quantity' => 2,
         'status' => UpJurusanConsignmentStatus::Received,
+        'created_at' => '2026-06-25 10:00:00',
+    ]);
+    $newerPending = UpJurusanConsignment::factory()->create([
+        'up_jurusan_id' => $ownUp->id,
+        'requested_quantity' => 6,
+        'received_quantity' => 0,
+        'sold_quantity' => 0,
+        'status' => UpJurusanConsignmentStatus::PendingApproval,
+        'created_at' => '2026-06-24 09:00:00',
     ]);
     UpJurusanConsignment::factory()->create([
         'up_jurusan_id' => $otherUp->id,
@@ -273,17 +285,95 @@ test('admin jurusan can view scoped dashboard summary', function () {
         'sold_quantity' => 0,
         'status' => UpJurusanConsignmentStatus::PendingApproval,
     ]);
+    UpJurusanPosSale::query()->create([
+        'up_jurusan_id' => $ownUp->id,
+        'user_id' => User::factory()->create()->id,
+        'code' => 'TRX-20260625100000-UP',
+        'total_quantity' => 3,
+        'total_amount' => 45_000,
+    ]);
 
     $this->actingAs($adminJurusan)
         ->get(route('admin-jurusan.dashboard'))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
             ->component('admin-jurusan/dashboard')
-            ->where('dashboard.total_up_jurusans', 1)
-            ->where('dashboard.pending_requests', 1)
-            ->where('dashboard.approved_requests', 1)
-            ->where('dashboard.active_stock', 3)
-            ->has('dashboard.recent_requests', 2),
+            ->where('dashboard.today_sales', 45_000)
+            ->where('dashboard.pending_requests', 2)
+            ->where('dashboard.awaiting_receive', 0)
+            ->where('dashboard.report_status.code', 'no_picket')
+            ->where('dashboard.recent_requests.0.id', $oldestPending->id)
+            ->where('dashboard.recent_requests.1.id', $newerPending->id)
+            ->where('dashboard.recent_requests.2.id', $received->id)
+            ->missing('dashboard.sales_trend_data')
+            ->missing('dashboard.status_distribution')
+            ->missing('dashboard.stock_distribution'),
+        );
+});
+
+test('admin jurusan dashboard reports submitted daily report state', function () {
+    $this->travelTo('2026-06-25 12:00:00');
+
+    $adminJurusan = User::factory()->create(['role' => UserRole::AdminJurusan]);
+    $upJurusan = UpJurusan::factory()->create(['admin_jurusan_id' => $adminJurusan->id]);
+    $picket = User::factory()->create([
+        'role' => UserRole::PicketOfficer,
+        'up_jurusan_id' => $upJurusan->id,
+    ]);
+    UpJurusanDailyReport::query()->create([
+        'up_jurusan_id' => $upJurusan->id,
+        'user_id' => $picket->id,
+        'report_date' => '2026-06-25',
+        'total_sold' => 2,
+        'total_revenue' => 10_000,
+        'submitted_at' => '2026-06-25 11:00:00',
+    ]);
+
+    $this->actingAs($adminJurusan)
+        ->get(route('admin-jurusan.dashboard'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('dashboard.report_status.code', 'submitted')
+            ->where('dashboard.report_status.label', 'Sudah dikirim')
+            ->where('dashboard.report_status.picket_name', $picket->name)
+            ->where('dashboard.report_status.submitted_at', '2026-06-25T11:00:00+00:00'),
+        );
+});
+
+test('picket dashboard exposes open and submitted report workflow states', function () {
+    $this->travelTo('2026-06-25 12:00:00');
+
+    $upJurusan = UpJurusan::factory()->create();
+    $picket = User::factory()->create([
+        'role' => UserRole::PicketOfficer,
+        'up_jurusan_id' => $upJurusan->id,
+    ]);
+
+    $this->actingAs($picket)
+        ->get(route('picket.dashboard'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('daily_report.status.code', 'open')
+            ->where('daily_report.status.label', 'Terbuka')
+            ->where('daily_report.submitted_at', null),
+        );
+
+    UpJurusanDailyReport::query()->create([
+        'up_jurusan_id' => $upJurusan->id,
+        'user_id' => $picket->id,
+        'report_date' => '2026-06-25',
+        'total_sold' => 0,
+        'total_revenue' => 0,
+        'submitted_at' => '2026-06-25 11:00:00',
+    ]);
+
+    $this->actingAs($picket)
+        ->get(route('picket.dashboard'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('daily_report.status.code', 'submitted')
+            ->where('daily_report.status.label', 'Dikirim')
+            ->where('daily_report.submitted_at', '2026-06-25T11:00:00.000000Z'),
         );
 });
 

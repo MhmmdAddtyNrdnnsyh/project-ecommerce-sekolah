@@ -111,7 +111,7 @@ class PicketUpJurusanConsignmentController extends Controller
      * @return array{
      *     up_jurusan: array{id: int, name: string}|null,
      *     pos_products: array<int, array{id: int, source: string, seller_name: string, product_name: string, price: int, available_quantity: int}>,
-     *     daily_report: array{date: string, total_sold: int, total_revenue: int, submitted_at: string|null, items: array<int, array{id: int, code: string, receipt_url: string, sold_at: string|null, total_quantity: int, total_amount: int, commission_amount: int, seller_amount: int, products: array<int, array{product_name: string, source: string, quantity: int, unit_price: int, subtotal: int}>}>},
+     *     daily_report: array{date: string, status: array{code: string, label: string}, total_sold: int, total_revenue: int, submitted_at: string|null, items: array<int, array{id: int, code: string, receipt_url: string, sold_at: string|null, total_quantity: int, total_amount: int, commission_amount: int, seller_amount: int, products: array<int, array{product_name: string, source: string, quantity: int, unit_price: int, subtotal: int}>}>},
      *     consignments: array<int, array{id: int, seller_name: string, product_name: string, up_jurusan_name: string, requested_quantity: int, received_quantity: int, sold_quantity: int, status: array{code: string, label: string}}>,
      *     order_items: array<int, array{id: int, code: string, order_id: int, buyer_name: string, seller_name: string, product_name: string, quantity: int, subtotal: int, status: array{code: string, label: string}, created_at: string|null}>
      * }
@@ -210,6 +210,10 @@ class PicketUpJurusanConsignmentController extends Controller
                 ->all(),
             'daily_report' => [
                 'date' => $today,
+                'status' => [
+                    'code' => $dailyReport === null ? 'open' : 'submitted',
+                    'label' => $dailyReport === null ? 'Terbuka' : 'Dikirim',
+                ],
                 'total_sold' => $dailyReportSummary['total_sold'],
                 'total_revenue' => $dailyReportSummary['total_revenue'],
                 'submitted_at' => $dailyReportSummary['submitted_at'],

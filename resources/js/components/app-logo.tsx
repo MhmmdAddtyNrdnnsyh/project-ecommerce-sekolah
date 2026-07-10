@@ -6,8 +6,8 @@ type Props = {
 };
 
 export default function AppLogo({
-    title = 'EduCart Admin',
-    subtitle = 'Management Portal',
+    title = 'EduCart',
+    subtitle = 'Portal Sekolah',
 }: Props) {
     return (
         <>

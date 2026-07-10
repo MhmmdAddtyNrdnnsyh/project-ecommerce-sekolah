@@ -7,6 +7,7 @@ use App\Enums\ProductStatus;
 use App\Enums\UserRole;
 use App\Models\Order;
 use App\Models\Product;
+use App\Models\SellerApplication;
 use App\Models\User;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -18,12 +19,8 @@ class AdminDashboardController extends Controller
         return Inertia::render('dashboard', [
             'dashboard' => [
                 'stats' => $this->stats(),
-                'userGrowthData' => $this->userGrowthData(),
                 'orderTrendData' => $this->orderTrendData(),
-                'roleDistributionData' => $this->roleDistributionData(),
-                'productStatusData' => $this->productStatusData(),
                 'adminQueue' => $this->adminQueue(),
-                'platformHealth' => $this->platformHealth(),
                 'activities' => $this->activities(),
             ],
         ]);
@@ -57,58 +54,27 @@ class AdminDashboardController extends Controller
                 'icon' => 'users',
             ],
             [
-                'label' => 'Seller Aktif',
+                'label' => 'Seller Terdaftar',
                 'value' => $this->number($sellerCount),
                 'context' => $this->number($sellerCount).' seller terdaftar',
                 'tone' => 'emerald',
                 'icon' => 'store',
             ],
             [
-                'label' => 'Produk Live',
+                'label' => 'Produk Aktif',
                 'value' => $this->number($approvedProducts),
                 'context' => $this->number($totalProducts).' total produk',
                 'tone' => 'amber',
                 'icon' => 'packageCheck',
             ],
             [
-                'label' => 'Transaksi',
+                'label' => 'Order Online',
                 'value' => $this->number($totalOrders),
-                'context' => 'Rp '.$this->number($totalOrderValue).' nilai order online gross',
+                'context' => 'Rp '.$this->number($totalOrderValue).' nilai order online tercatat',
                 'tone' => 'rose',
                 'icon' => 'walletCards',
             ],
         ];
-    }
-
-    /**
-     * @return array<int, array{month: string, users: int, sellers: int}>
-     */
-    private function userGrowthData(): array
-    {
-        $start = now()->startOfMonth()->subMonths(7);
-
-        return collect(range(0, 7))
-            ->map(function (int $offset) use ($start) {
-                $month = $start->copy()->addMonths($offset);
-
-                return [
-                    'month' => $month->translatedFormat('M'),
-                    'users' => User::query()
-                        ->whereBetween('created_at', [
-                            $month->copy()->startOfMonth(),
-                            $month->copy()->endOfMonth(),
-                        ])
-                        ->count(),
-                    'sellers' => User::query()
-                        ->where('role', UserRole::Seller->value)
-                        ->whereBetween('created_at', [
-                            $month->copy()->startOfMonth(),
-                            $month->copy()->endOfMonth(),
-                        ])
-                        ->count(),
-                ];
-            })
-            ->all();
     }
 
     /**
@@ -139,46 +105,7 @@ class AdminDashboardController extends Controller
     }
 
     /**
-     * @return array<int, array{role: string, label: string, value: int, fill: string}>
-     */
-    private function roleDistributionData(): array
-    {
-        $totalUsers = max(User::query()->count(), 1);
-
-        return collect(UserRole::cases())
-            ->map(fn (UserRole $role) => [
-                'role' => $role === UserRole::PicketOfficer ? 'picket' : $role->value,
-                'label' => $role->label(),
-                'value' => (int) round(($this->roleCount($role) / $totalUsers) * 100),
-                'fill' => 'var(--color-'.($role === UserRole::PicketOfficer ? 'picket' : $role->value).')',
-            ])
-            ->all();
-    }
-
-    /**
-     * @return array<int, array{status: string, label: string, value: int, fill: string}>
-     */
-    private function productStatusData(): array
-    {
-        $counts = Product::query()
-            ->selectRaw('status, COUNT(*) as total')
-            ->groupBy('status')
-            ->pluck('total', 'status');
-
-        return collect(ProductStatus::cases())
-            ->map(fn (ProductStatus $status) => [
-                'status' => $status->value,
-                'label' => $status->label(),
-                'value' => (int) ($counts[$status->value] ?? 0),
-                'fill' => $this->productStatusColor($status),
-            ])
-            ->filter(fn (array $item) => $item['value'] > 0)
-            ->values()
-            ->all();
-    }
-
-    /**
-     * @return array<int, array{ticket: string, area: string, owner: string, priority: string, status: string, sla: string, icon: string}>
+     * @return array<int, array{key: string, type: string, title: string, owner: string, status: string, age: string, href: string}>
      */
     private function adminQueue(): array
     {
@@ -187,63 +114,47 @@ class AdminDashboardController extends Controller
             ->where('status', ProductStatus::Pending)
             ->whereNotNull('seller_id')
             ->oldest()
-            ->limit(4)
+            ->limit(6)
             ->get(['id', 'seller_id', 'name', 'created_at'])
             ->map(fn (Product $product) => [
-                'ticket' => 'PRD-'.$product->id,
-                'area' => 'Moderasi produk',
+                'key' => 'product-'.$product->id,
+                'type' => 'Moderasi Produk',
+                'title' => $product->name,
                 'owner' => $product->seller->name,
-                'priority' => 'High',
-                'status' => 'Open',
-                'sla' => $product->created_at?->diffForHumans() ?? '-',
-                'icon' => 'packageCheck',
+                'status' => 'Menunggu',
+                'age' => $product->created_at?->diffForHumans() ?? '-',
+                'href' => route('admin.products.moderation.index', absolute: false),
+                'created_at' => $product->created_at->timestamp,
             ]);
 
-        return $pendingProducts->values()->all();
-    }
+        $pendingApplications = SellerApplication::query()
+            ->with('user:id,name')
+            ->where('status', SellerApplication::PENDING)
+            ->oldest()
+            ->limit(6)
+            ->get(['id', 'user_id', 'store_name', 'created_at'])
+            ->map(fn (SellerApplication $application) => [
+                'key' => 'seller-application-'.$application->id,
+                'type' => 'Pengajuan Seller',
+                'title' => $application->store_name,
+                'owner' => $application->user->name,
+                'status' => 'Menunggu',
+                'age' => $application->created_at?->diffForHumans() ?? '-',
+                'href' => route('admin.seller-applications.index', absolute: false),
+                'created_at' => $application->created_at->timestamp,
+            ]);
 
-    /**
-     * @return array<int, array{label: string, value: string, progress: int, tone: string}>
-     */
-    private function platformHealth(): array
-    {
-        $totalUsers = User::query()->count();
-        $usersWithPosition = User::query()->whereNotNull('position_id')->count();
-        $totalProducts = Product::query()->count();
-        $approvedProducts = Product::query()
-            ->where('status', ProductStatus::Approved)
-            ->count();
-        $pendingProducts = Product::query()
-            ->where('status', ProductStatus::Pending)
-            ->count();
-        $totalOrders = Order::query()->count();
+        return $pendingProducts
+            ->concat($pendingApplications)
+            ->sortBy('created_at')
+            ->take(6)
+            ->map(function (array $item) {
+                unset($item['created_at']);
 
-        return [
-            [
-                'label' => 'Profil posisi lengkap',
-                'value' => $this->percentLabel($usersWithPosition, $totalUsers),
-                'progress' => $this->percent($usersWithPosition, $totalUsers),
-                'tone' => 'emerald',
-            ],
-            [
-                'label' => 'Produk approved',
-                'value' => $this->percentLabel($approvedProducts, $totalProducts),
-                'progress' => $this->percent($approvedProducts, $totalProducts),
-                'tone' => 'amber',
-            ],
-            [
-                'label' => 'Produk menunggu moderasi',
-                'value' => $this->number($pendingProducts),
-                'progress' => $this->percent($pendingProducts, max($totalProducts, 1)),
-                'tone' => 'blue',
-            ],
-            [
-                'label' => 'Order tercatat',
-                'value' => $this->number($totalOrders),
-                'progress' => $totalOrders > 0 ? 100 : 0,
-                'tone' => 'emerald',
-            ],
-        ];
+                return $item;
+            })
+            ->values()
+            ->all();
     }
 
     /**
@@ -271,20 +182,6 @@ class AdminDashboardController extends Controller
         return User::query()->where('role', $role->value)->count();
     }
 
-    private function percent(int $value, int $total): int
-    {
-        if ($total === 0) {
-            return 0;
-        }
-
-        return (int) round(($value / $total) * 100);
-    }
-
-    private function percentLabel(int $value, int $total): string
-    {
-        return $this->percent($value, $total).'%';
-    }
-
     private function number(int $value): string
     {
         return number_format($value, 0, ',', '.');
@@ -309,16 +206,6 @@ class AdminDashboardController extends Controller
             UserRole::Seller => 'emerald',
             UserRole::PicketOfficer => 'amber',
             UserRole::Buyer => 'blue',
-        };
-    }
-
-    private function productStatusColor(ProductStatus $status): string
-    {
-        return match ($status) {
-            ProductStatus::Draft => '#64748b',
-            ProductStatus::Pending => '#2563eb',
-            ProductStatus::Approved => '#10b981',
-            ProductStatus::Rejected => '#e11d48',
         };
     }
 }

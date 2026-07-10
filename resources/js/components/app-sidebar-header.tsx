@@ -65,6 +65,77 @@ type HeaderNotification = {
     href: string;
 };
 
+export function getSearchConfig(role: string | undefined, query: string) {
+    if (role === 'buyer' || !role) {
+        return {
+            ariaLabel: 'Pencarian katalog',
+            placeholder: 'Cari produk di katalog...',
+            targets: [
+                {
+                    label: 'Katalog',
+                    icon: Package,
+                    href: catalogIndex({ query: { search: query } }),
+                },
+            ],
+        };
+    }
+
+    if (role === 'seller') {
+        return {
+            ariaLabel: 'Pencarian seller',
+            placeholder: 'Cari pesanan, produk, stok...',
+            targets: [
+                {
+                    label: 'Produk',
+                    icon: Package,
+                    href: productsIndex({ query: { q: query } }),
+                },
+                {
+                    label: 'Inventori',
+                    icon: Boxes,
+                    href: inventoryIndex({ query: { q: query } }),
+                },
+                {
+                    label: 'Pesanan',
+                    icon: ShoppingCart,
+                    href: sellerOrdersIndex({ query: { q: query } }),
+                },
+            ],
+        };
+    }
+
+    if (role === 'admin') {
+        return {
+            ariaLabel: 'Pencarian admin',
+            placeholder: 'Cari produk, order, user, kategori...',
+            targets: [
+                {
+                    label: 'Produk',
+                    icon: Package,
+                    href: `/admin/products?q=${encodeURIComponent(query)}`,
+                },
+                {
+                    label: 'Orders',
+                    icon: ShoppingCart,
+                    href: `/admin/orders?q=${encodeURIComponent(query)}`,
+                },
+                {
+                    label: 'Users',
+                    icon: Users,
+                    href: `/admin/users?q=${encodeURIComponent(query)}`,
+                },
+                {
+                    label: 'Categories',
+                    icon: Tags,
+                    href: `/admin/categories?q=${encodeURIComponent(query)}`,
+                },
+            ],
+        };
+    }
+
+    return null;
+}
+
 export function AppSidebarHeader({
     breadcrumbs = [],
 }: {
@@ -81,62 +152,13 @@ export function AppSidebarHeader({
     const userRole = auth.user?.role ? roleLabels[auth.user.role] : undefined;
     const query = search.trim();
     const role = auth.user?.role;
-    const isAdmin = auth.user?.role === 'admin';
-    const searchTargets =
-        role === 'buyer' || !role
-            ? [
-                  {
-                      label: 'Katalog',
-                      icon: Package,
-                      href: catalogIndex({ query: { search: query } }),
-                  },
-              ]
-            : role === 'seller'
-              ? [
-                    {
-                        label: 'Produk',
-                        icon: Package,
-                        href: productsIndex({ query: { q: query } }),
-                    },
-                    {
-                        label: 'Inventori',
-                        icon: Boxes,
-                        href: inventoryIndex({ query: { q: query } }),
-                    },
-                    {
-                        label: 'Pesanan',
-                        icon: ShoppingCart,
-                        href: sellerOrdersIndex({ query: { q: query } }),
-                    },
-                ]
-              : [
-                    {
-                        label: 'Produk',
-                        icon: Package,
-                        href: `/admin/products?q=${encodeURIComponent(query)}`,
-                    },
-                    {
-                        label: 'Orders',
-                        icon: ShoppingCart,
-                        href: `/admin/orders?q=${encodeURIComponent(query)}`,
-                    },
-                    {
-                        label: 'Users',
-                        icon: Users,
-                        href: `/admin/users?q=${encodeURIComponent(query)}`,
-                    },
-                    {
-                        label: 'Categories',
-                        icon: Tags,
-                        href: `/admin/categories?q=${encodeURIComponent(query)}`,
-                    },
-                ];
+    const searchConfig = getSearchConfig(role, query);
 
     const submitSearch = (event: React.FormEvent) => {
         event.preventDefault();
 
-        if (query) {
-            router.visit(searchTargets[0].href);
+        if (query && searchConfig) {
+            router.visit(searchConfig.targets[0].href);
         }
     };
 
@@ -147,48 +169,38 @@ export function AppSidebarHeader({
                 <h1 className="hidden shrink-0 text-2xl font-semibold text-slate-800 lg:block">
                     {title}
                 </h1>
-                <form
-                    onSubmit={submitSearch}
-                    className="group relative hidden w-full max-w-md sm:block lg:ml-4"
-                >
-                    <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" />
-                    <Input
-                        value={search}
-                        onChange={(event) => setSearch(event.target.value)}
-                        className="h-10 rounded-[8px] border-slate-200 bg-slate-50 pr-4 pl-10 text-sm text-slate-700 focus-visible:border-blue-400 focus-visible:bg-white focus-visible:ring-blue-100"
-                        placeholder={
-                            auth.user?.role === 'buyer'
-                                ? 'Cari produk di katalog...'
-                                : isAdmin
-                                  ? 'Cari produk, order, user, kategori...'
-                                  : 'Cari pesanan, produk, stok...'
-                        }
-                        type="search"
-                        aria-label={
-                            auth.user?.role === 'buyer'
-                                ? 'Pencarian katalog'
-                                : isAdmin
-                                  ? 'Pencarian admin'
-                                  : 'Pencarian seller'
-                        }
-                    />
-                    {query && (
-                        <div className="absolute top-11 z-20 hidden w-full rounded-[8px] border border-slate-200 bg-white p-1 shadow-lg group-focus-within:block">
-                            {searchTargets.map(
-                                ({ label, icon: Icon, href }) => (
-                                    <Link
-                                        key={label}
-                                        href={href}
-                                        className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 focus:bg-slate-100 focus:outline-none"
-                                    >
-                                        <Icon className="size-4" />
-                                        Cari di {label}
-                                    </Link>
-                                ),
-                            )}
-                        </div>
-                    )}
-                </form>
+                {searchConfig && (
+                    <form
+                        onSubmit={submitSearch}
+                        className="group relative hidden w-full max-w-md xl:ml-4 xl:block"
+                    >
+                        <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" />
+                        <Input
+                            value={search}
+                            onChange={(event) => setSearch(event.target.value)}
+                            className="h-10 rounded-[8px] border-slate-200 bg-slate-50 pr-4 pl-10 text-sm text-slate-700 focus-visible:border-blue-400 focus-visible:bg-white focus-visible:ring-blue-100"
+                            placeholder={searchConfig.placeholder}
+                            type="search"
+                            aria-label={searchConfig.ariaLabel}
+                        />
+                        {query && (
+                            <div className="absolute top-11 z-20 hidden w-full rounded-[8px] border border-slate-200 bg-white p-1 shadow-lg group-focus-within:block">
+                                {searchConfig.targets.map(
+                                    ({ label, icon: Icon, href }) => (
+                                        <Link
+                                            key={label}
+                                            href={href}
+                                            className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 focus:bg-slate-100 focus:outline-none"
+                                        >
+                                            <Icon className="size-4" />
+                                            Cari di {label}
+                                        </Link>
+                                    ),
+                                )}
+                            </div>
+                        )}
+                    </form>
+                )}
             </div>
 
             <div className="flex shrink-0 items-center gap-2 sm:gap-3">

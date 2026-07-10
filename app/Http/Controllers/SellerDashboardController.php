@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Enums\OrderItemStatus;
+use App\Enums\PaymentStatus;
+use App\Enums\ProductFulfillmentType;
 use App\Enums\ProductStatus;
 use App\Models\OrderItem;
 use App\Models\Product;
@@ -25,8 +27,7 @@ class SellerDashboardController extends Controller
             'dashboard' => [
                 'stats' => $this->stats($seller),
                 'salesData' => $this->salesData($seller),
-                'salesChannelData' => $this->salesChannelData($seller),
-                'orderMixData' => $this->orderMixData($seller),
+                'activeOrderData' => $this->activeOrderData($seller),
                 'orders' => $this->latestOrders($seller),
                 'topProducts' => $this->topProducts($seller),
                 'stockAlerts' => $this->stockAlerts($seller),
@@ -36,18 +37,17 @@ class SellerDashboardController extends Controller
     }
 
     /**
-     * @return array<int, array{label: string, value: string, context: string, trend: string, tone: string, icon: string}>
+     * @return array<int, array{label: string, value: string, context: string, tone: string, icon: string}>
      */
     private function stats(User $seller): array
     {
         $now = now();
         $currentMonthStart = $now->copy()->startOfMonth();
         $currentMonthEnd = $now->copy()->endOfMonth();
-        $lastMonthStart = $now->copy()->subMonth()->startOfMonth();
-        $lastMonthEnd = $now->copy()->subMonth()->endOfMonth();
 
         $revenue = fn ($start, $end): int => (int) OrderItem::query()
             ->whereHas('product', fn ($q) => $q->where('seller_id', $seller->id))
+            ->where('payment_status', PaymentStatus::Paid)
             ->whereBetween('created_at', [$start, $end])
             ->sum('subtotal');
         $offlineRevenue = fn ($start, $end): int => (int) UpJurusanStockMovement::query()
@@ -57,96 +57,89 @@ class SellerDashboardController extends Controller
             ->sum('seller_amount');
 
         $currentMonthRevenue = $revenue($currentMonthStart, $currentMonthEnd) + $offlineRevenue($currentMonthStart, $currentMonthEnd);
-        $lastMonthRevenue = $revenue($lastMonthStart, $lastMonthEnd) + $offlineRevenue($lastMonthStart, $lastMonthEnd);
-
-        $revenueTrend = match (true) {
-            $lastMonthRevenue > 0 => round(($currentMonthRevenue - $lastMonthRevenue) / $lastMonthRevenue * 100).'%',
-            $currentMonthRevenue > 0 => '100%',
-            default => '0%',
-        };
-
-        $incomingOrders = OrderItem::query()
+        $paidTransactions = OrderItem::query()
             ->whereHas('product', fn ($q) => $q->where('seller_id', $seller->id))
+            ->where('payment_status', PaymentStatus::Paid)
             ->whereBetween('created_at', [$currentMonthStart, $currentMonthEnd])
             ->distinct()
             ->count('order_id');
-        $incomingOrders += UpJurusanStockMovement::query()
+        $paidTransactions += UpJurusanStockMovement::query()
             ->where('type', 'out')
             ->whereHas('consignment', fn ($q) => $q->where('seller_id', $seller->id))
             ->whereBetween('created_at', [$currentMonthStart, $currentMonthEnd])
-            ->count();
+            ->distinct()
+            ->count('up_jurusan_pos_sale_id');
 
-        $activeProducts = Product::query()
+        $stockQuery = Product::query()
             ->where('seller_id', $seller->id)
-            ->where('status', ProductStatus::Approved)
+            ->where('fulfillment_type', ProductFulfillmentType::ReadyStock);
+        $outOfStockProducts = (clone $stockQuery)
+            ->whereRaw(Product::REAL_STOCK_SQL.' = 0')
             ->count();
-
-        $lowStockProducts = Product::query()
-            ->where('seller_id', $seller->id)
+        $lowStockProducts = (clone $stockQuery)
             ->whereRaw(Product::REAL_STOCK_SQL.' > 0')
             ->whereRaw(Product::REAL_STOCK_SQL.' <= ?', [Product::LOW_STOCK_THRESHOLD])
             ->count();
 
         return [
             [
-                'label' => 'Omzet Bulan Ini',
+                'label' => 'Pendapatan Seller Bulan Ini',
                 'value' => 'Rp '.number_format((float) $currentMonthRevenue, 0, ',', '.'),
-                'context' => $currentMonthRevenue > 0 ? 'Pendapatan bulan ini' : 'Belum ada transaksi bulan ini',
-                'trend' => $revenueTrend,
+                'context' => $currentMonthRevenue > 0
+                    ? 'Online terbayar dan hak seller dari POS'
+                    : 'Belum ada pendapatan seller bulan ini',
                 'tone' => 'blue',
                 'icon' => 'badgeDollarSign',
             ],
             [
-                'label' => 'Pesanan Masuk',
-                'value' => (string) $incomingOrders,
-                'context' => $incomingOrders > 0 ? 'Order bulan ini' : 'Belum ada order bulan ini',
-                'trend' => "{$incomingOrders} order",
+                'label' => 'Transaksi Terbayar Bulan Ini',
+                'value' => (string) $paidTransactions,
+                'context' => $paidTransactions > 0 ? 'Online terbayar dan nota POS' : 'Belum ada transaksi terbayar',
                 'tone' => 'emerald',
                 'icon' => 'shoppingCart',
             ],
             [
-                'label' => 'Produk Aktif',
-                'value' => (string) $activeProducts,
-                'context' => $activeProducts > 0 ? 'Produk yang aktif dijual' : 'Belum ada produk aktif',
-                'trend' => $activeProducts > 0 ? "{$activeProducts} item" : '0 item',
-                'tone' => 'amber',
-                'icon' => 'package',
+                'label' => 'Stok Habis',
+                'value' => (string) $outOfStockProducts,
+                'context' => $outOfStockProducts > 0 ? 'Perlu segera diisi' : 'Tidak ada stok habis',
+                'tone' => $outOfStockProducts > 0 ? 'rose' : 'emerald',
+                'icon' => 'boxes',
             ],
             [
-                'label' => 'Stok Rendah',
+                'label' => 'Stok Menipis',
                 'value' => (string) $lowStockProducts,
                 'context' => $lowStockProducts > 0 ? 'Perlu segera diisi' : 'Stok produk aman',
-                'trend' => "{$lowStockProducts} item",
-                'tone' => $lowStockProducts > 0 ? 'rose' : 'emerald',
+                'tone' => $lowStockProducts > 0 ? 'amber' : 'emerald',
                 'icon' => 'boxes',
             ],
         ];
     }
 
     /**
-     * @return array<int, array{day: string, sales: int, orders: int}>
+     * @return array<int, array{day: string, sales: int}>
      */
     private function salesData(User $seller): array
     {
         $start = now()->subDays(6)->startOfDay();
         $end = now()->endOfDay();
 
-        /** @var Collection<string, object{total_sales: int, total_orders: int}> $totals */
+        /** @var Collection<string, object{total_sales: int}> $totals */
         $totals = DB::table('order_items')
             ->join('products', 'order_items.product_id', '=', 'products.id')
             ->where('products.seller_id', $seller->id)
+            ->where('order_items.payment_status', PaymentStatus::Paid->value)
             ->whereBetween('order_items.created_at', [$start, $end])
-            ->selectRaw('DATE(order_items.created_at) as sale_date, COALESCE(SUM(order_items.subtotal), 0) as total_sales, COUNT(DISTINCT order_items.order_id) as total_orders')
+            ->selectRaw('DATE(order_items.created_at) as sale_date, COALESCE(SUM(order_items.subtotal), 0) as total_sales')
             ->groupByRaw('DATE(order_items.created_at)')
             ->get()
             ->keyBy('sale_date');
-        /** @var Collection<string, object{total_sales: int, total_orders: int}> $offlineTotals */
+        /** @var Collection<string, object{total_sales: int}> $offlineTotals */
         $offlineTotals = DB::table('up_jurusan_stock_movements')
             ->join('up_jurusan_consignments', 'up_jurusan_stock_movements.up_jurusan_consignment_id', '=', 'up_jurusan_consignments.id')
             ->where('up_jurusan_consignments.seller_id', $seller->id)
             ->where('up_jurusan_stock_movements.type', 'out')
             ->whereBetween('up_jurusan_stock_movements.created_at', [$start, $end])
-            ->selectRaw('DATE(up_jurusan_stock_movements.created_at) as sale_date, COALESCE(SUM(up_jurusan_stock_movements.seller_amount), 0) as total_sales, COUNT(*) as total_orders')
+            ->selectRaw('DATE(up_jurusan_stock_movements.created_at) as sale_date, COALESCE(SUM(up_jurusan_stock_movements.seller_amount), 0) as total_sales')
             ->groupByRaw('DATE(up_jurusan_stock_movements.created_at)')
             ->get()
             ->keyBy('sale_date');
@@ -158,9 +151,8 @@ class SellerDashboardController extends Controller
                 $offlineDayStats = $offlineTotals->get($date->toDateString());
 
                 return [
-                    'day' => $date->translatedFormat('D'),
+                    'day' => $date->translatedFormat('d M'),
                     'sales' => (int) ($dayStats->total_sales ?? 0) + (int) ($offlineDayStats->total_sales ?? 0),
-                    'orders' => (int) ($dayStats->total_orders ?? 0) + (int) ($offlineDayStats->total_orders ?? 0),
                 ];
             })
             ->values()
@@ -168,74 +160,44 @@ class SellerDashboardController extends Controller
     }
 
     /**
-     * @return array<int, array{channel: string, label: string, orders: int, revenue: int, fill: string}>
+     * @return array<int, array{key: string, label: string, value: int}>
      */
-    private function salesChannelData(User $seller): array
-    {
-        $start = now()->subDays(29)->startOfDay();
-        $end = now()->endOfDay();
-
-        $onlineOrders = OrderItem::query()
-            ->whereHas('product', fn ($q) => $q->where('seller_id', $seller->id))
-            ->whereBetween('created_at', [$start, $end]);
-        $offlineOrders = UpJurusanStockMovement::query()
-            ->where('type', 'out')
-            ->whereHas('consignment', fn ($q) => $q->where('seller_id', $seller->id))
-            ->whereBetween('created_at', [$start, $end]);
-
-        return [
-            [
-                'channel' => 'online',
-                'label' => 'Website',
-                'orders' => (clone $onlineOrders)->distinct()->count('order_id'),
-                'revenue' => (int) (clone $onlineOrders)->sum('subtotal'),
-                'fill' => '#2563eb',
-            ],
-            [
-                'channel' => 'offline',
-                'label' => 'POS UP Jurusan',
-                'orders' => (clone $offlineOrders)->count(),
-                'revenue' => (int) (clone $offlineOrders)->sum('seller_amount'),
-                'fill' => '#10b981',
-            ],
-        ];
-    }
-
-    /**
-     * @return array<int, array{status: string, label: string, value: int, fill: string}>
-     */
-    private function orderMixData(User $seller): array
+    private function activeOrderData(User $seller): array
     {
         $counts = OrderItem::query()
             ->whereHas('product', fn ($q) => $q->where('seller_id', $seller->id))
+            ->whereIn('status', [
+                OrderItemStatus::Pending,
+                OrderItemStatus::Packed,
+                OrderItemStatus::InProduction,
+                OrderItemStatus::Ready,
+                OrderItemStatus::Sent,
+            ])
             ->selectRaw('status, COUNT(*) as count')
             ->groupBy('status')
             ->pluck('count', 'status');
 
         return [
             [
-                'status' => 'pending',
-                'label' => OrderItemStatus::Pending->label(),
+                'key' => 'needs_action',
+                'label' => 'Perlu Diproses',
                 'value' => (int) ($counts[OrderItemStatus::Pending->value] ?? 0),
-                'fill' => 'var(--color-pending)',
             ],
             [
-                'status' => 'packed',
-                'label' => OrderItemStatus::Packed->label(),
-                'value' => (int) ($counts[OrderItemStatus::Packed->value] ?? 0),
-                'fill' => 'var(--color-packed)',
+                'key' => 'in_production',
+                'label' => 'Sedang Diproduksi',
+                'value' => (int) ($counts[OrderItemStatus::InProduction->value] ?? 0),
             ],
             [
-                'status' => 'sent',
-                'label' => OrderItemStatus::Sent->label(),
+                'key' => 'ready_to_ship',
+                'label' => 'Siap Dikirim',
+                'value' => (int) ($counts[OrderItemStatus::Packed->value] ?? 0)
+                    + (int) ($counts[OrderItemStatus::Ready->value] ?? 0),
+            ],
+            [
+                'key' => 'sent',
+                'label' => 'Dikirim',
                 'value' => (int) ($counts[OrderItemStatus::Sent->value] ?? 0),
-                'fill' => 'var(--color-sent)',
-            ],
-            [
-                'status' => 'completed',
-                'label' => OrderItemStatus::Completed->label(),
-                'value' => (int) ($counts[OrderItemStatus::Completed->value] ?? 0),
-                'fill' => 'var(--color-completed)',
             ],
         ];
     }
@@ -290,7 +252,7 @@ class SellerDashboardController extends Controller
                 'meta' => $movement->consignment->upJurusan->name.' • '.$movement->user->name,
                 'gross_amount' => 'Rp '.number_format($movement->gross_amount, 0, ',', '.'),
                 'commission_amount' => 'Rp '.number_format($movement->commission_amount, 0, ',', '.'),
-                'status' => OrderItemStatus::Sent->value,
+                'status' => OrderItemStatus::Completed->value,
                 'time' => $movement->created_at?->translatedFormat('d M, H:i') ?? '',
                 'created_at' => $movement->created_at->timestamp,
             ]);
@@ -327,6 +289,7 @@ class SellerDashboardController extends Controller
             ->join('products', 'order_items.product_id', '=', 'products.id')
             ->leftJoin('categories', 'products.category_id', '=', 'categories.id')
             ->where('products.seller_id', $seller->id)
+            ->where('order_items.payment_status', PaymentStatus::Paid->value)
             ->select(
                 'products.name as product_name',
                 'categories.name as category_name',
@@ -358,6 +321,7 @@ class SellerDashboardController extends Controller
             ->select('products.*')
             ->selectRaw(Product::REAL_STOCK_SQL.' as real_stock')
             ->where('seller_id', $seller->id)
+            ->where('fulfillment_type', ProductFulfillmentType::ReadyStock)
             ->whereRaw(Product::REAL_STOCK_SQL.' <= ?', [Product::LOW_STOCK_THRESHOLD])
             ->orderByRaw(Product::REAL_STOCK_SQL)
             ->orderBy('id')
@@ -391,6 +355,10 @@ class SellerDashboardController extends Controller
             ->whereHas('product', fn ($q) => $q->where('seller_id', $seller->id))
             ->where('status', OrderItemStatus::Pending)
             ->count();
+        $pendingProducts = Product::query()
+            ->where('seller_id', $seller->id)
+            ->where('status', ProductStatus::Pending)
+            ->count();
 
         $tasks = [];
 
@@ -402,14 +370,6 @@ class SellerDashboardController extends Controller
                 'icon' => 'package',
                 'tone' => 'amber',
             ];
-        } else {
-            $tasks[] = [
-                'title' => "Produk aktif: {$activeProducts}",
-                'detail' => 'Produk Anda sudah aktif dan dapat dibeli pembeli.',
-                'action' => 'Lihat produk',
-                'icon' => 'packageCheck',
-                'tone' => 'emerald',
-            ];
         }
 
         if ($pendingOrders > 0) {
@@ -420,23 +380,17 @@ class SellerDashboardController extends Controller
                 'icon' => 'shoppingBag',
                 'tone' => 'blue',
             ];
-        } else {
-            $tasks[] = [
-                'title' => 'Toko siap menerima pesanan',
-                'detail' => 'Toko Anda aktif dan siap menerima pesanan dari pembeli.',
-                'action' => 'Lihat toko',
-                'icon' => 'store',
-                'tone' => 'blue',
-            ];
         }
 
-        $tasks[] = [
-            'title' => 'Akun seller sudah siap digunakan',
-            'detail' => 'Masuk sebagai '.$seller->name.' dan pantau data toko dari halaman ini.',
-            'action' => 'Lihat profil',
-            'icon' => 'store',
-            'tone' => 'blue',
-        ];
+        if ($pendingProducts > 0) {
+            $tasks[] = [
+                'title' => "{$pendingProducts} produk menunggu moderasi",
+                'detail' => 'Pantau status produk sebelum dapat dijual.',
+                'action' => 'Lihat produk',
+                'icon' => 'clock3',
+                'tone' => 'amber',
+            ];
+        }
 
         return $tasks;
     }

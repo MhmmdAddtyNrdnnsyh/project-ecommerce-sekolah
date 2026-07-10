@@ -1,39 +1,17 @@
-import { Head } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
 import type { LucideIcon } from 'lucide-react';
 import {
-    AlertTriangle,
     ArrowUpRight,
-    BadgeCheck,
-    CheckCircle2,
-    ClipboardCheck,
-    Clock3,
-    FileWarning,
     PackageCheck,
-    School,
-    ShieldCheck,
     Store,
-    UserCog,
-    UserRoundCheck,
     Users,
     WalletCards,
 } from 'lucide-react';
-import {
-    Bar,
-    BarChart,
-    CartesianGrid,
-    Cell,
-    ComposedChart,
-    Line,
-    Pie,
-    PieChart,
-    XAxis,
-    YAxis,
-} from 'recharts';
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
     Card,
-    CardAction,
     CardContent,
     CardDescription,
     CardHeader,
@@ -53,956 +31,310 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { cn } from '@/lib/utils';
 import { dashboard } from '@/routes';
 
 type StatTone = 'blue' | 'emerald' | 'amber' | 'rose';
-
-type AdminIconKey =
-    | 'alertTriangle'
-    | 'badgeCheck'
-    | 'checkCircle2'
-    | 'clipboardCheck'
-    | 'clock3'
-    | 'fileWarning'
-    | 'packageCheck'
-    | 'school'
-    | 'shieldCheck'
-    | 'store'
-    | 'userRoundCheck'
-    | 'users'
-    | 'walletCards';
-
-type StatCardData = {
-    label: string;
-    value: string;
-    context: string;
-    tone: StatTone;
-    icon: AdminIconKey;
-};
-
-type QueuePriority = 'High' | 'Medium' | 'Low';
-type QueueStatus = 'Open' | 'In Review' | 'Resolved';
-
-type UserGrowthPoint = {
-    month: string;
-    users: number;
-    sellers: number;
-};
-
-type OrderTrendPoint = {
-    month: string;
-    orders: number;
-    revenue: number;
-};
-
-type RoleDistributionItem = {
-    role: string;
-    label: string;
-    value: number;
-    fill: string;
-};
-
-type ProductStatusItem = {
-    status: string;
-    label: string;
-    value: number;
-    fill: string;
-};
-
-type AdminQueueItem = {
-    ticket: string;
-    area: string;
-    owner: string;
-    priority: QueuePriority;
-    status: QueueStatus;
-    sla: string;
-    icon: AdminIconKey;
-};
-
-type PlatformHealthItem = {
-    label: string;
-    value: string;
-    progress: number;
-    tone: StatTone;
-};
-
-type ActivityItem = {
-    title: string;
-    detail: string;
-    time: string;
-    icon: AdminIconKey;
-    tone: StatTone;
-};
+type AdminIconKey = 'users' | 'store' | 'packageCheck' | 'walletCards';
 
 type DashboardProps = {
     dashboard: {
-        stats: StatCardData[];
-        userGrowthData: UserGrowthPoint[];
-        orderTrendData: OrderTrendPoint[];
-        roleDistributionData: RoleDistributionItem[];
-        productStatusData: ProductStatusItem[];
-        adminQueue: AdminQueueItem[];
-        platformHealth: PlatformHealthItem[];
-        activities: ActivityItem[];
+        stats: {
+            label: string;
+            value: string;
+            context: string;
+            tone: StatTone;
+            icon: AdminIconKey;
+        }[];
+        orderTrendData: { month: string; orders: number; revenue: number }[];
+        adminQueue: {
+            key: string;
+            type: string;
+            title: string;
+            owner: string;
+            status: string;
+            age: string;
+            href: string;
+        }[];
+        activities: {
+            title: string;
+            detail: string;
+            time: string;
+        }[];
     };
 };
 
 const iconMap: Record<AdminIconKey, LucideIcon> = {
-    alertTriangle: AlertTriangle,
-    badgeCheck: BadgeCheck,
-    checkCircle2: CheckCircle2,
-    clipboardCheck: ClipboardCheck,
-    clock3: Clock3,
-    fileWarning: FileWarning,
-    packageCheck: PackageCheck,
-    school: School,
-    shieldCheck: ShieldCheck,
-    store: Store,
-    userRoundCheck: UserRoundCheck,
     users: Users,
+    store: Store,
+    packageCheck: PackageCheck,
     walletCards: WalletCards,
 };
 
-const userGrowthConfig = {
-    users: {
-        label: 'Pengguna',
-        color: '#2563eb',
-    },
-    sellers: {
-        label: 'Seller',
-        color: '#10b981',
-    },
-} satisfies ChartConfig;
+const toneStyles: Record<StatTone, string> = {
+    blue: 'bg-blue-50 text-blue-700',
+    emerald: 'bg-emerald-50 text-emerald-700',
+    amber: 'bg-amber-50 text-amber-700',
+    rose: 'bg-rose-50 text-rose-700',
+};
 
 const orderTrendConfig = {
-    orders: {
-        label: 'Order',
-        color: '#2563eb',
-    },
-    revenue: {
-        label: 'Nilai transaksi',
-        color: '#10b981',
-    },
-} satisfies ChartConfig;
-
-const roleDistributionConfig = {
-    value: {
-        label: 'Persentase',
-    },
-    buyer: {
-        label: 'Buyer',
-        color: '#2563eb',
-    },
-    seller: {
-        label: 'Seller',
-        color: '#10b981',
-    },
-    picket: {
-        label: 'Petugas Piket',
-        color: '#f59e0b',
-    },
-    admin: {
-        label: 'Admin',
-        color: '#e11d48',
-    },
-} satisfies ChartConfig;
-
-const productStatusConfig = {
-    value: {
-        label: 'Produk',
-    },
+    orders: { label: 'Order online', color: '#2563eb' },
 } satisfies ChartConfig;
 
 const formatNumber = (value: number) =>
     new Intl.NumberFormat('id-ID').format(value);
 
-const formatRupiah = (value: number) =>
-    new Intl.NumberFormat('id-ID', {
-        style: 'currency',
-        currency: 'IDR',
-        maximumFractionDigits: 0,
-    }).format(value);
-
-const toneStyles: Record<
-    StatTone,
-    {
-        icon: string;
-        badge: string;
-        bar: string;
-        ring: string;
-    }
-> = {
-    blue: {
-        icon: 'bg-blue-50 text-blue-700',
-        badge: 'bg-blue-50 text-blue-700',
-        bar: 'bg-blue-600',
-        ring: 'ring-blue-100',
-    },
-    emerald: {
-        icon: 'bg-emerald-50 text-emerald-700',
-        badge: 'bg-emerald-50 text-emerald-700',
-        bar: 'bg-emerald-600',
-        ring: 'ring-emerald-100',
-    },
-    amber: {
-        icon: 'bg-amber-50 text-amber-700',
-        badge: 'bg-amber-50 text-amber-700',
-        bar: 'bg-amber-500',
-        ring: 'ring-amber-100',
-    },
-    rose: {
-        icon: 'bg-rose-50 text-rose-700',
-        badge: 'bg-rose-50 text-rose-700',
-        bar: 'bg-rose-600',
-        ring: 'ring-rose-100',
-    },
-};
-
-const priorityStyles: Record<QueuePriority, string> = {
-    High: 'bg-rose-50 text-rose-700',
-    Medium: 'bg-amber-50 text-amber-700',
-    Low: 'bg-slate-100 text-slate-600',
-};
-
-const statusStyles: Record<QueueStatus, string> = {
-    Open: 'bg-rose-50 text-rose-700',
-    'In Review': 'bg-blue-50 text-blue-700',
-    Resolved: 'bg-emerald-50 text-emerald-700',
-};
-
-function StatCard({ stat }: { stat: StatCardData }) {
+function StatCard({
+    stat,
+}: {
+    stat: DashboardProps['dashboard']['stats'][number];
+}) {
     const Icon = iconMap[stat.icon];
-    const styles = toneStyles[stat.tone];
 
     return (
-        <Card className="gap-0 rounded-[8px] border border-slate-100 bg-white py-0 shadow-sm transition-shadow hover:shadow-md">
+        <Card className="gap-0 rounded-[8px] border-slate-100 py-0 shadow-sm">
             <CardContent className="p-5">
-                <div className="mb-4 flex items-start justify-between gap-3">
-                    <div
-                        className={cn(
-                            'flex size-10 items-center justify-center rounded-[8px]',
-                            styles.icon,
-                        )}
+                <div className="flex items-start justify-between gap-3">
+                    <div>
+                        <p className="text-sm text-slate-500">{stat.label}</p>
+                        <p className="mt-2 text-2xl font-semibold text-slate-950 tabular-nums">
+                            {stat.value}
+                        </p>
+                    </div>
+                    <span
+                        className={`grid size-10 shrink-0 place-items-center rounded-[8px] ${toneStyles[stat.tone]}`}
                     >
                         <Icon className="size-5" />
-                    </div>
-                    <Badge
-                        variant="secondary"
-                        className={cn(
-                            'h-auto rounded-[6px] px-2 py-1',
-                            styles.badge,
-                        )}
-                    >
-                        <ShieldCheck className="size-3.5" />
-                        Admin
-                    </Badge>
+                    </span>
                 </div>
-                <p className="mb-1 text-sm text-slate-500">{stat.label}</p>
-                <p className="text-2xl font-semibold text-slate-950">
-                    {stat.value}
-                </p>
-                <p className="mt-1 text-xs text-slate-500">{stat.context}</p>
+                <p className="mt-2 text-xs text-slate-500">{stat.context}</p>
             </CardContent>
         </Card>
     );
 }
 
 export default function Dashboard({ dashboard: data }: DashboardProps) {
-    const roleTotal = data.roleDistributionData.reduce(
-        (total, role) => total + role.value,
-        0,
-    );
-    const productStatusTotal = data.productStatusData.reduce(
-        (total, status) => total + status.value,
-        0,
-    );
-
     return (
         <>
             <Head title="Dashboard Admin" />
             <main className="min-h-[calc(100svh-4rem)] bg-slate-50 p-4 sm:p-6">
                 <div className="space-y-6">
-                    <section className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
-                        <div>
-                            <div className="mb-2 flex items-center gap-2">
-                                <Badge className="rounded-[6px] bg-blue-50 text-blue-700">
-                                    <UserCog className="size-3.5" />
-                                    Admin Console
-                                </Badge>
-                                <Badge className="rounded-[6px] bg-emerald-50 text-emerald-700">
-                                    Platform sehat
-                                </Badge>
-                            </div>
-                            <h1 className="text-2xl font-semibold text-slate-950">
-                                Dashboard Admin
-                            </h1>
-                            <p className="mt-1 max-w-2xl text-sm text-slate-500">
-                                Ringkasan operasional EduCart untuk user,
-                                seller, produk, transaksi, dan antrian moderasi.
-                            </p>
-                        </div>
-                    </section>
+                    <header>
+                        <Badge className="mb-2 rounded-[6px] bg-blue-50 text-blue-700">
+                            Administrasi EduCart
+                        </Badge>
+                        <h1 className="text-2xl font-semibold text-slate-950">
+                            Dashboard Admin
+                        </h1>
+                        <p className="mt-1 max-w-2xl text-sm text-slate-500">
+                            Tinjau moderasi, pengajuan seller, dan aktivitas
+                            order online.
+                        </p>
+                    </header>
 
-                    <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                    <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                         {data.stats.map((stat) => (
                             <StatCard key={stat.label} stat={stat} />
                         ))}
                     </section>
 
-                    <section className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-                        <Card className="gap-0 rounded-[8px] border border-slate-100 bg-white py-0 shadow-sm lg:col-span-2">
-                            <CardHeader className="flex-row items-start p-6 pb-0">
-                                <div className="space-y-1">
-                                    <CardTitle className="text-xl font-semibold text-slate-950">
-                                        Pertumbuhan Platform
-                                    </CardTitle>
-                                    <CardDescription>
-                                        User baru dan seller aktif per bulan
-                                    </CardDescription>
-                                </div>
-                                <CardAction>
-                                    <Badge className="rounded-[6px] bg-slate-100 text-slate-600">
-                                        8 bulan
-                                    </Badge>
-                                </CardAction>
+                    <Card className="gap-0 rounded-[8px] border-slate-100 py-0 shadow-sm">
+                        <CardHeader className="flex-col items-stretch gap-4 border-b border-slate-100 p-5 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <CardTitle>Antrian Tindakan Admin</CardTitle>
+                                <CardDescription>
+                                    Moderasi dan pengajuan yang menunggu
+                                    tinjauan.
+                                </CardDescription>
+                            </div>
+                            <div className="flex flex-col gap-2 sm:flex-row">
+                                <Button asChild size="sm" variant="outline">
+                                    <Link href="/admin/products/moderation">
+                                        Moderasi Produk
+                                    </Link>
+                                </Button>
+                                <Button asChild size="sm" variant="outline">
+                                    <Link href="/admin/seller-applications">
+                                        Pengajuan Seller
+                                    </Link>
+                                </Button>
+                            </div>
+                        </CardHeader>
+                        <CardContent className="overflow-x-auto p-0">
+                            <Table className="min-w-[760px]">
+                                <TableHeader>
+                                    <TableRow className="bg-slate-50">
+                                        <TableHead className="px-5">
+                                            Jenis
+                                        </TableHead>
+                                        <TableHead>Nama</TableHead>
+                                        <TableHead>Pemilik</TableHead>
+                                        <TableHead>Status</TableHead>
+                                        <TableHead>Umur</TableHead>
+                                        <TableHead className="pr-5 text-right">
+                                            Aksi
+                                        </TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {data.adminQueue.length === 0 && (
+                                        <TableRow>
+                                            <TableCell
+                                                colSpan={6}
+                                                className="py-10 text-center text-sm text-slate-500"
+                                            >
+                                                Tidak ada tindakan admin yang
+                                                menunggu.
+                                            </TableCell>
+                                        </TableRow>
+                                    )}
+                                    {data.adminQueue.map((item) => (
+                                        <TableRow key={item.key}>
+                                            <TableCell className="px-5 font-medium">
+                                                {item.type}
+                                            </TableCell>
+                                            <TableCell>{item.title}</TableCell>
+                                            <TableCell>{item.owner}</TableCell>
+                                            <TableCell>
+                                                <Badge className="rounded-[6px] bg-amber-50 text-amber-700">
+                                                    {item.status}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell className="text-slate-500">
+                                                {item.age}
+                                            </TableCell>
+                                            <TableCell className="pr-5 text-right">
+                                                <Button asChild size="sm">
+                                                    <Link href={item.href}>
+                                                        Tinjau
+                                                        <ArrowUpRight className="size-4" />
+                                                    </Link>
+                                                </Button>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </CardContent>
+                    </Card>
+
+                    <section className="grid gap-6 lg:grid-cols-[1.6fr_1fr]">
+                        <Card className="gap-0 rounded-[8px] border-slate-100 py-0 shadow-sm">
+                            <CardHeader className="p-5 pb-0">
+                                <CardTitle>Aktivitas Order Online</CardTitle>
+                                <CardDescription>
+                                    Jumlah order online selama delapan bulan
+                                    terakhir. Admin hanya memantau status order
+                                    dan pembayaran.
+                                </CardDescription>
                             </CardHeader>
-                            <CardContent className="p-6">
+                            <CardContent className="p-5">
                                 <ChartContainer
-                                    config={userGrowthConfig}
+                                    config={orderTrendConfig}
                                     className="aspect-auto h-72 w-full"
                                 >
-                                    <BarChart
+                                    <AreaChart
                                         accessibilityLayer
-                                        data={data.userGrowthData}
-                                        barCategoryGap="28%"
+                                        data={data.orderTrendData}
                                         margin={{
-                                            top: 12,
-                                            right: 12,
                                             left: -18,
-                                            bottom: 0,
+                                            right: 12,
+                                            top: 12,
                                         }}
                                     >
+                                        <defs>
+                                            <linearGradient
+                                                id="admin-orders"
+                                                x1="0"
+                                                y1="0"
+                                                x2="0"
+                                                y2="1"
+                                            >
+                                                <stop
+                                                    offset="5%"
+                                                    stopColor="var(--color-orders)"
+                                                    stopOpacity={0.3}
+                                                />
+                                                <stop
+                                                    offset="95%"
+                                                    stopColor="var(--color-orders)"
+                                                    stopOpacity={0.02}
+                                                />
+                                            </linearGradient>
+                                        </defs>
                                         <CartesianGrid vertical={false} />
                                         <XAxis
                                             dataKey="month"
                                             tickLine={false}
-                                            tickMargin={10}
                                             axisLine={false}
+                                            tickMargin={10}
                                         />
                                         <YAxis
+                                            allowDecimals={false}
                                             tickLine={false}
                                             axisLine={false}
-                                            tickMargin={10}
                                             width={38}
                                         />
                                         <ChartTooltip
                                             cursor={false}
                                             content={
                                                 <ChartTooltipContent
-                                                    indicator="dot"
-                                                    formatter={(
-                                                        value,
-                                                        name,
-                                                    ) => (
-                                                        <div className="flex min-w-32 flex-1 items-center justify-between gap-3">
-                                                            <span className="text-muted-foreground">
-                                                                {name ===
-                                                                'users'
-                                                                    ? 'Pengguna baru'
-                                                                    : 'Seller baru'}
-                                                            </span>
-                                                            <span className="font-mono font-medium text-foreground tabular-nums">
-                                                                {formatNumber(
-                                                                    Number(
-                                                                        value,
-                                                                    ),
-                                                                )}
-                                                            </span>
-                                                        </div>
+                                                    formatter={(value) => (
+                                                        <span className="font-mono font-medium">
+                                                            {formatNumber(
+                                                                Number(value),
+                                                            )}{' '}
+                                                            order
+                                                        </span>
                                                     )}
-                                                    className="rounded-[8px] bg-white text-slate-900 ring-slate-200"
                                                 />
                                             }
                                         />
-                                        <Bar
-                                            dataKey="users"
-                                            fill="var(--color-users)"
-                                            radius={[4, 4, 0, 0]}
-                                            maxBarSize={36}
-                                        />
-                                        <Bar
-                                            dataKey="sellers"
-                                            fill="var(--color-sellers)"
-                                            radius={[4, 4, 0, 0]}
-                                            maxBarSize={36}
-                                        />
-                                    </BarChart>
-                                </ChartContainer>
-                            </CardContent>
-                        </Card>
-
-                        <Card className="gap-0 rounded-[8px] border border-slate-100 bg-white py-0 shadow-sm">
-                            <CardHeader className="p-6 pb-0">
-                                <CardTitle className="text-xl font-semibold text-slate-950">
-                                    Distribusi Role
-                                </CardTitle>
-                                <CardDescription>
-                                    Komposisi akun aktif di platform
-                                </CardDescription>
-                            </CardHeader>
-                            <CardContent className="flex flex-col items-center p-6">
-                                <div className="relative size-56">
-                                    <ChartContainer
-                                        config={roleDistributionConfig}
-                                        className="aspect-square size-full"
-                                    >
-                                        <PieChart>
-                                            <ChartTooltip
-                                                cursor={false}
-                                                content={
-                                                    <ChartTooltipContent
-                                                        hideLabel
-                                                        nameKey="role"
-                                                        formatter={(
-                                                            value,
-                                                            name,
-                                                        ) => (
-                                                            <div className="flex min-w-32 flex-1 items-center justify-between gap-3">
-                                                                <span className="text-muted-foreground">
-                                                                    {name}
-                                                                </span>
-                                                                <span className="font-mono font-medium text-foreground tabular-nums">
-                                                                    {formatNumber(
-                                                                        Number(
-                                                                            value,
-                                                                        ),
-                                                                    )}
-                                                                    %
-                                                                </span>
-                                                            </div>
-                                                        )}
-                                                        className="rounded-[8px] bg-white text-slate-900 ring-slate-200"
-                                                    />
-                                                }
-                                            />
-                                            <Pie
-                                                data={data.roleDistributionData}
-                                                dataKey="value"
-                                                nameKey="label"
-                                                innerRadius={58}
-                                                outerRadius={86}
-                                                paddingAngle={2}
-                                                strokeWidth={3}
-                                            >
-                                                {data.roleDistributionData.map(
-                                                    (entry) => (
-                                                        <Cell
-                                                            key={entry.role}
-                                                            fill={entry.fill}
-                                                        />
-                                                    ),
-                                                )}
-                                            </Pie>
-                                        </PieChart>
-                                    </ChartContainer>
-                                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                                        <span className="text-2xl font-semibold text-slate-800">
-                                            {roleTotal}%
-                                        </span>
-                                    </div>
-                                </div>
-                                <div className="mt-4 grid w-full grid-cols-2 gap-2">
-                                    {data.roleDistributionData.map((role) => (
-                                        <div
-                                            key={role.role}
-                                            className="flex min-w-0 items-center gap-2"
-                                        >
-                                            <span
-                                                className="size-3 shrink-0 rounded-full"
-                                                style={{
-                                                    backgroundColor: role.fill,
-                                                }}
-                                            />
-                                            <span className="truncate text-xs font-medium text-slate-600">
-                                                {role.label} ({role.value}%)
-                                            </span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </section>
-
-                    <section className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-                        <Card className="gap-0 rounded-[8px] border border-slate-100 bg-white py-0 shadow-sm lg:col-span-2">
-                            <CardHeader className="flex-row items-start p-6 pb-0">
-                                <div className="space-y-1">
-                                    <CardTitle className="text-xl font-semibold text-slate-950">
-                                        Tren Order Online
-                                    </CardTitle>
-                                    <CardDescription>
-                                        Jumlah order dan nilai transaksi selama
-                                        8 bulan terakhir
-                                    </CardDescription>
-                                </div>
-                                <CardAction>
-                                    <Badge className="rounded-[6px] bg-slate-100 text-slate-600">
-                                        Gross
-                                    </Badge>
-                                </CardAction>
-                            </CardHeader>
-                            <CardContent className="p-6">
-                                <ChartContainer
-                                    config={orderTrendConfig}
-                                    className="aspect-auto h-72 w-full"
-                                >
-                                    <ComposedChart
-                                        accessibilityLayer
-                                        data={data.orderTrendData}
-                                        barCategoryGap="34%"
-                                        margin={{
-                                            top: 12,
-                                            right: 12,
-                                            left: -18,
-                                            bottom: 0,
-                                        }}
-                                    >
-                                        <CartesianGrid vertical={false} />
-                                        <XAxis
-                                            dataKey="month"
-                                            tickLine={false}
-                                            tickMargin={10}
-                                            axisLine={false}
-                                        />
-                                        <YAxis
-                                            yAxisId="revenue"
-                                            tickLine={false}
-                                            axisLine={false}
-                                            tickMargin={10}
-                                            width={68}
-                                            tickFormatter={(value) =>
-                                                `Rp ${formatNumber(
-                                                    Number(value) / 1000,
-                                                )}rb`
-                                            }
-                                        />
-                                        <YAxis
-                                            yAxisId="orders"
-                                            orientation="right"
-                                            tickLine={false}
-                                            axisLine={false}
-                                            tickMargin={10}
-                                            width={34}
-                                            allowDecimals={false}
-                                        />
-                                        <ChartTooltip
-                                            cursor={false}
-                                            content={
-                                                <ChartTooltipContent
-                                                    indicator="dot"
-                                                    formatter={(
-                                                        value,
-                                                        name,
-                                                    ) => (
-                                                        <div className="flex min-w-36 flex-1 items-center justify-between gap-3">
-                                                            <span className="text-muted-foreground">
-                                                                {name ===
-                                                                'revenue'
-                                                                    ? 'Nilai transaksi'
-                                                                    : 'Jumlah order'}
-                                                            </span>
-                                                            <span className="font-mono font-medium text-foreground tabular-nums">
-                                                                {name ===
-                                                                'revenue'
-                                                                    ? formatRupiah(
-                                                                          Number(
-                                                                              value,
-                                                                          ),
-                                                                      )
-                                                                    : formatNumber(
-                                                                          Number(
-                                                                              value,
-                                                                          ),
-                                                                      )}
-                                                            </span>
-                                                        </div>
-                                                    )}
-                                                    className="rounded-[8px] bg-white text-slate-900 ring-slate-200"
-                                                />
-                                            }
-                                        />
-                                        <Bar
-                                            yAxisId="revenue"
-                                            dataKey="revenue"
-                                            fill="var(--color-revenue)"
-                                            radius={[4, 4, 0, 0]}
-                                            maxBarSize={42}
-                                        />
-                                        <Line
-                                            yAxisId="orders"
+                                        <Area
                                             type="monotone"
                                             dataKey="orders"
                                             stroke="var(--color-orders)"
+                                            fill="url(#admin-orders)"
                                             strokeWidth={2}
-                                            dot={{ r: 3 }}
-                                            activeDot={{ r: 5 }}
                                         />
-                                    </ComposedChart>
+                                    </AreaChart>
                                 </ChartContainer>
                             </CardContent>
                         </Card>
 
-                        <Card className="gap-0 rounded-[8px] border border-slate-100 bg-white py-0 shadow-sm">
-                            <CardHeader className="p-6 pb-0">
-                                <CardTitle className="text-xl font-semibold text-slate-950">
-                                    Status Produk
-                                </CardTitle>
+                        <Card className="gap-0 rounded-[8px] border-slate-100 py-0 shadow-sm">
+                            <CardHeader className="p-5 pb-4">
+                                <CardTitle>Pengguna Baru</CardTitle>
                                 <CardDescription>
-                                    Komposisi moderasi katalog produk
+                                    Akun yang baru terdaftar di EduCart.
                                 </CardDescription>
                             </CardHeader>
-                            <CardContent className="flex flex-col items-center p-6">
-                                {data.productStatusData.length === 0 ? (
-                                    <div className="grid h-56 place-items-center text-sm text-slate-500">
-                                        Belum ada produk.
-                                    </div>
-                                ) : (
-                                    <>
-                                        <div className="relative size-56">
-                                            <ChartContainer
-                                                config={productStatusConfig}
-                                                className="aspect-square size-full"
-                                            >
-                                                <PieChart>
-                                                    <ChartTooltip
-                                                        cursor={false}
-                                                        content={
-                                                            <ChartTooltipContent
-                                                                hideLabel
-                                                                nameKey="label"
-                                                                formatter={(
-                                                                    value,
-                                                                    name,
-                                                                ) => (
-                                                                    <div className="flex min-w-32 flex-1 items-center justify-between gap-3">
-                                                                        <span className="text-muted-foreground">
-                                                                            {
-                                                                                name
-                                                                            }
-                                                                        </span>
-                                                                        <span className="font-mono font-medium text-foreground tabular-nums">
-                                                                            {formatNumber(
-                                                                                Number(
-                                                                                    value,
-                                                                                ),
-                                                                            )}
-                                                                        </span>
-                                                                    </div>
-                                                                )}
-                                                                className="rounded-[8px] bg-white text-slate-900 ring-slate-200"
-                                                            />
-                                                        }
-                                                    />
-                                                    <Pie
-                                                        data={
-                                                            data.productStatusData
-                                                        }
-                                                        dataKey="value"
-                                                        nameKey="label"
-                                                        innerRadius={58}
-                                                        outerRadius={86}
-                                                        paddingAngle={2}
-                                                        strokeWidth={3}
-                                                    >
-                                                        {data.productStatusData.map(
-                                                            (entry) => (
-                                                                <Cell
-                                                                    key={
-                                                                        entry.status
-                                                                    }
-                                                                    fill={
-                                                                        entry.fill
-                                                                    }
-                                                                />
-                                                            ),
-                                                        )}
-                                                    </Pie>
-                                                </PieChart>
-                                            </ChartContainer>
-                                            <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                                                <span className="text-2xl font-semibold text-slate-800 tabular-nums">
-                                                    {productStatusTotal}
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <div className="mt-4 grid w-full gap-2">
-                                            {data.productStatusData.map(
-                                                (status) => (
-                                                    <div
-                                                        key={status.status}
-                                                        className="flex items-center justify-between gap-3 text-sm"
-                                                    >
-                                                        <span className="flex min-w-0 items-center gap-2 text-slate-600">
-                                                            <span
-                                                                className="size-3 shrink-0 rounded-full"
-                                                                style={{
-                                                                    backgroundColor:
-                                                                        status.fill,
-                                                                }}
-                                                            />
-                                                            <span className="truncate">
-                                                                {status.label}
-                                                            </span>
-                                                        </span>
-                                                        <span className="font-semibold text-slate-950 tabular-nums">
-                                                            {status.value}
-                                                        </span>
-                                                    </div>
-                                                ),
-                                            )}
-                                        </div>
-                                    </>
-                                )}
-                            </CardContent>
-                        </Card>
-                    </section>
-
-                    <Card className="gap-0 rounded-[8px] border border-slate-100 bg-white py-0 shadow-sm">
-                        <CardHeader className="flex-row items-center border-b border-slate-100 p-6">
-                            <div className="space-y-1">
-                                <CardTitle className="text-xl font-semibold text-slate-950">
-                                    Antrian Tindakan Admin
-                                </CardTitle>
-                                <CardDescription>
-                                    Tiket yang perlu ditinjau tim operasional
-                                </CardDescription>
-                            </div>
-                            <CardAction>
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    className="h-8 rounded-[8px] px-2 text-blue-600 hover:bg-blue-50 hover:text-blue-800"
-                                >
-                                    Semua tiket
-                                    <ArrowUpRight className="size-4" />
-                                </Button>
-                            </CardAction>
-                        </CardHeader>
-                        <CardContent className="p-0">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow className="border-slate-100 bg-slate-50 hover:bg-slate-50">
-                                        {[
-                                            'Tiket',
-                                            'Area',
-                                            'Pemilik',
-                                            'Prioritas',
-                                            'Status',
-                                            'SLA',
-                                            '',
-                                        ].map((heading) => (
-                                            <TableHead
-                                                key={heading}
-                                                className="h-11 px-6 text-xs font-semibold tracking-wide text-slate-500 uppercase"
-                                            >
-                                                {heading}
-                                            </TableHead>
-                                        ))}
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {data.adminQueue.length === 0 && (
-                                        <TableRow className="border-slate-100">
-                                            <TableCell
-                                                colSpan={7}
-                                                className="px-6 py-8 text-center text-sm text-slate-500"
-                                            >
-                                                Tidak ada antrian tindakan admin
-                                                saat ini.
-                                            </TableCell>
-                                        </TableRow>
-                                    )}
-                                    {data.adminQueue.map((item) => {
-                                        const Icon = iconMap[item.icon];
-
-                                        return (
-                                            <TableRow
-                                                key={item.ticket}
-                                                className="border-slate-100 hover:bg-slate-50/70"
-                                            >
-                                                <TableCell className="px-6 py-4 font-semibold text-slate-950">
-                                                    {item.ticket}
-                                                </TableCell>
-                                                <TableCell className="px-6 py-4">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="flex size-8 items-center justify-center rounded-[6px] bg-slate-100 text-slate-600">
-                                                            <Icon className="size-4" />
-                                                        </div>
-                                                        <span className="font-medium text-slate-700">
-                                                            {item.area}
-                                                        </span>
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell className="px-6 py-4 text-slate-600">
-                                                    {item.owner}
-                                                </TableCell>
-                                                <TableCell className="px-6 py-4">
-                                                    <Badge
-                                                        variant="secondary"
-                                                        className={cn(
-                                                            'rounded-full px-2.5 py-0.5',
-                                                            priorityStyles[
-                                                                item.priority
-                                                            ],
-                                                        )}
-                                                    >
-                                                        {item.priority}
-                                                    </Badge>
-                                                </TableCell>
-                                                <TableCell className="px-6 py-4">
-                                                    <Badge
-                                                        variant="secondary"
-                                                        className={cn(
-                                                            'rounded-full px-2.5 py-0.5',
-                                                            statusStyles[
-                                                                item.status
-                                                            ],
-                                                        )}
-                                                    >
-                                                        {item.status}
-                                                    </Badge>
-                                                </TableCell>
-                                                <TableCell className="px-6 py-4 text-slate-500">
-                                                    {item.sla}
-                                                </TableCell>
-                                                <TableCell className="px-6 py-4 text-right">
-                                                    <Button
-                                                        type="button"
-                                                        variant="outline"
-                                                        className="h-8 rounded-[8px] border-slate-200 bg-white px-2"
-                                                    >
-                                                        Tinjau
-                                                    </Button>
-                                                </TableCell>
-                                            </TableRow>
-                                        );
-                                    })}
-                                </TableBody>
-                            </Table>
-                        </CardContent>
-                    </Card>
-
-                    <section className="grid grid-cols-1 gap-6 pb-8 lg:grid-cols-2">
-                        <Card className="gap-0 rounded-[8px] border border-slate-100 bg-white py-0 shadow-sm">
-                            <CardHeader className="p-6 pb-4">
-                                <CardTitle className="text-xl font-semibold text-slate-950">
-                                    Kesehatan Platform
-                                </CardTitle>
-                                <CardDescription>
-                                    Indikator operasional yang dipantau admin
-                                </CardDescription>
-                            </CardHeader>
-                            <CardContent className="space-y-5 p-6 pt-0">
-                                {data.platformHealth.map((item) => {
-                                    const styles = toneStyles[item.tone];
-
-                                    return (
-                                        <div
-                                            key={item.label}
-                                            className="space-y-2"
-                                        >
-                                            <div className="flex items-center justify-between gap-3">
-                                                <span className="text-sm font-medium text-slate-700">
-                                                    {item.label}
-                                                </span>
-                                                <span className="text-sm font-semibold text-slate-950">
-                                                    {item.value}
-                                                </span>
-                                            </div>
-                                            <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-                                                <div
-                                                    className={cn(
-                                                        'h-full rounded-full',
-                                                        styles.bar,
-                                                    )}
-                                                    style={{
-                                                        width: `${item.progress}%`,
-                                                    }}
-                                                />
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </CardContent>
-                        </Card>
-
-                        <Card className="gap-0 rounded-[8px] border border-slate-100 bg-white py-0 shadow-sm">
-                            <CardHeader className="p-6 pb-4">
-                                <CardTitle className="text-xl font-semibold text-slate-950">
-                                    Aktivitas Terbaru
-                                </CardTitle>
-                                <CardDescription>
-                                    Audit singkat dari tindakan admin
-                                </CardDescription>
-                            </CardHeader>
-                            <CardContent className="p-6 pt-0">
+                            <CardContent className="p-5 pt-0">
                                 {data.activities.length === 0 ? (
                                     <p className="text-sm text-slate-500">
-                                        Belum ada aktivitas terbaru.
+                                        Belum ada pengguna baru.
                                     </p>
                                 ) : (
                                     <ul className="space-y-4">
                                         {data.activities.map(
-                                            (activity, index) => {
-                                                const Icon =
-                                                    iconMap[activity.icon];
-                                                const styles =
-                                                    toneStyles[activity.tone];
-
-                                                return (
-                                                    <li
-                                                        key={`${activity.title}-${activity.time}`}
-                                                        className={cn(
-                                                            'flex items-start gap-3',
-                                                            index !==
-                                                                data.activities
-                                                                    .length -
-                                                                    1 &&
-                                                                'border-b border-slate-100 pb-4',
-                                                        )}
-                                                    >
-                                                        <div
-                                                            className={cn(
-                                                                'flex size-9 shrink-0 items-center justify-center rounded-[8px] ring-4',
-                                                                styles.icon,
-                                                                styles.ring,
-                                                            )}
-                                                        >
-                                                            <Icon className="size-4" />
-                                                        </div>
-                                                        <div className="min-w-0 flex-1">
-                                                            <div className="flex items-start justify-between gap-3">
-                                                                <p className="text-sm font-semibold text-slate-950">
-                                                                    {
-                                                                        activity.title
-                                                                    }
-                                                                </p>
-                                                                <span className="shrink-0 text-xs text-slate-400">
-                                                                    {
-                                                                        activity.time
-                                                                    }
-                                                                </span>
-                                                            </div>
-                                                            <p className="mt-1 text-sm text-slate-500">
-                                                                {
-                                                                    activity.detail
-                                                                }
-                                                            </p>
-                                                        </div>
-                                                    </li>
-                                                );
-                                            },
+                                            (activity, index) => (
+                                                <li
+                                                    key={`${activity.detail}-${index}`}
+                                                    className="border-b border-slate-100 pb-4 last:border-0 last:pb-0"
+                                                >
+                                                    <div className="flex justify-between gap-3">
+                                                        <p className="text-sm font-semibold text-slate-950">
+                                                            {activity.title}
+                                                        </p>
+                                                        <span className="shrink-0 text-xs text-slate-400">
+                                                            {activity.time}
+                                                        </span>
+                                                    </div>
+                                                    <p className="mt-1 text-sm text-slate-500">
+                                                        {activity.detail}
+                                                    </p>
+                                                </li>
+                                            ),
                                         )}
                                     </ul>
                                 )}
@@ -1016,10 +348,5 @@ export default function Dashboard({ dashboard: data }: DashboardProps) {
 }
 
 Dashboard.layout = {
-    breadcrumbs: [
-        {
-            title: 'Dashboard',
-            href: dashboard(),
-        },
-    ],
+    breadcrumbs: [{ title: 'Dashboard', href: dashboard() }],
 };
