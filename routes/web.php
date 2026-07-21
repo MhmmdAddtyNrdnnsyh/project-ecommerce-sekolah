@@ -52,6 +52,7 @@ Route::middleware(['auth', EnsureUserIsBuyer::class])->group(function () {
     Route::get('orders', [BuyerOrderController::class, 'index'])->name('orders.index');
     Route::get('orders/{order}', [BuyerOrderController::class, 'show'])->name('orders.show');
     Route::post('orders/{order}/complete', [BuyerOrderController::class, 'complete'])->name('orders.complete');
+    Route::post('orders/{order}/cancel', [BuyerOrderController::class, 'cancel'])->name('orders.cancel');
     Route::get('seller-application', [SellerApplicationController::class, 'index'])->name('seller-application.index');
     Route::post('seller-application', [SellerApplicationController::class, 'store'])->name('seller-application.store');
 });
@@ -73,6 +74,9 @@ Route::middleware(['auth', EnsureUserIsAdmin::class])->group(function () {
     Route::post('admin/seller-applications/{application}/approve', [SellerApplicationController::class, 'approve'])->name('admin.seller-applications.approve');
     Route::post('admin/seller-applications/{application}/reject', [SellerApplicationController::class, 'reject'])->name('admin.seller-applications.reject');
     Route::get('admin/orders', [AdminOrderController::class, 'index'])->name('admin.orders.index');
+    Route::post('admin/orders/{order}/cancel', [AdminOrderController::class, 'cancel'])->name('admin.orders.cancel');
+    Route::post('admin/orders/{order}/force-complete', [AdminOrderController::class, 'forceComplete'])->name('admin.orders.force-complete');
+    Route::post('admin/orders/{order}/mark-review', [AdminOrderController::class, 'markReview'])->name('admin.orders.mark-review');
 });
 
 Route::middleware(['auth', EnsureUserIsSeller::class])
@@ -94,7 +98,9 @@ Route::middleware(['auth', EnsureUserIsSeller::class])
         Route::get('orders/offline/{movement}', [SellerOrderController::class, 'showOffline'])->name('orders.offline.show');
         Route::get('orders/{orderItem}', [SellerOrderController::class, 'show'])->name('orders.show');
         Route::post('orders/{orderItem}/payment/approve', [SellerOrderController::class, 'approvePayment'])->name('orders.payment.approve');
+        Route::post('orders/{orderItem}/payment/reject', [SellerOrderController::class, 'rejectPayment'])->name('orders.payment.reject');
         Route::put('orders/{orderItem}/status', [SellerOrderController::class, 'updateStatus'])->name('orders.update-status');
+        Route::post('orders/{orderItem}/cancel', [SellerOrderController::class, 'cancel'])->name('orders.cancel');
 
         Route::get('consignments', [SellerConsignmentController::class, 'index'])->name('consignments.index');
     });
@@ -106,8 +112,10 @@ Route::middleware(['auth', EnsureUserIsAdminJurusan::class])
         Route::get('dashboard', AdminJurusanDashboardController::class)->name('dashboard');
         Route::get('up-jurusan', [AdminJurusanUpJurusanController::class, 'index'])->name('up-jurusan.index');
         Route::post('up-jurusan', [AdminJurusanUpJurusanController::class, 'store'])->name('up-jurusan.store');
+        Route::delete('up-jurusan/{upJurusan}', [AdminJurusanUpJurusanController::class, 'destroy'])->name('up-jurusan.destroy');
         Route::get('picket-officer/create', [AdminJurusanUpJurusanController::class, 'createPicket'])->name('picket-officer.create');
         Route::post('up-jurusan/{upJurusan}/assign-picket', [AdminJurusanUpJurusanController::class, 'assignPicket'])->name('up-jurusan.assign-picket');
+        Route::post('up-jurusan/{upJurusan}/unassign-picket', [AdminJurusanUpJurusanController::class, 'unassignPicket'])->name('up-jurusan.unassign-picket');
         Route::post('up-jurusan/{upJurusan}/pickets', [AdminJurusanUpJurusanController::class, 'storePicket'])->name('up-jurusan.pickets.store');
         Route::post('products', [AdminJurusanUpJurusanController::class, 'storeProduct'])->name('products.store');
         Route::get('consignments', [AdminJurusanConsignmentController::class, 'index'])->name('consignments.index');
@@ -144,7 +152,9 @@ Route::middleware(['auth', EnsureUserIsPicketOfficer::class])
         Route::get('orders', [PicketUpJurusanConsignmentController::class, 'orders'])->name('orders');
         Route::get('reports', [PicketUpJurusanConsignmentController::class, 'reports'])->name('reports');
         Route::post('orders/{orderItem}/payment/approve', [PicketUpJurusanConsignmentController::class, 'approveOrderPayment'])->name('orders.payment.approve');
+        Route::post('orders/{orderItem}/payment/reject', [PicketUpJurusanConsignmentController::class, 'rejectOrderPayment'])->name('orders.payment.reject');
         Route::put('orders/{orderItem}/status', [PicketUpJurusanConsignmentController::class, 'updateOrderStatus'])->name('orders.update-status');
+        Route::post('orders/{orderItem}/cancel', [PicketUpJurusanConsignmentController::class, 'cancelOrderItem'])->name('orders.cancel');
         Route::get('up-jurusan/consignments', [PicketUpJurusanConsignmentController::class, 'index'])->name('up-jurusan.consignments.index');
         Route::post('up-jurusan/consignments/{consignment}/receive', [PicketUpJurusanConsignmentController::class, 'receive'])->name('up-jurusan.consignments.receive');
         Route::post('up-jurusan/consignments/{consignment}/release', [PicketUpJurusanConsignmentController::class, 'release'])->name('up-jurusan.consignments.release');

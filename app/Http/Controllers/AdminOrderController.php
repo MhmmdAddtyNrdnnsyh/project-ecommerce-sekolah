@@ -4,17 +4,79 @@ namespace App\Http\Controllers;
 
 use App\Models\Order;
 use App\Models\OrderItem;
+use App\Models\User;
+use App\Support\OrderLivenessService;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class AdminOrderController extends Controller
 {
+    public function cancel(Request $request, Order $order): RedirectResponse
+    {
+        /** @var User $admin */
+        $admin = $request->user();
+        $this->authorize('forceCancel', $order);
+
+        $validated = $request->validate([
+            'cancel_reason' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        OrderLivenessService::forceCancel(
+            $order,
+            $admin,
+            $validated['cancel_reason'] ?? 'Dibatalkan oleh admin',
+        );
+
+        return back()->with('success', 'Pesanan berhasil dibatalkan.');
+    }
+
+    public function forceComplete(Request $request, Order $order): RedirectResponse
+    {
+        /** @var User $admin */
+        $admin = $request->user();
+        $this->authorize('forceComplete', $order);
+
+        $validated = $request->validate([
+            'reason' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        OrderLivenessService::forceComplete(
+            $order,
+            $admin,
+            $validated['reason'] ?? 'Diselesaikan paksa oleh admin',
+        );
+
+        return back()->with('success', 'Pesanan berhasil diselesaikan oleh admin.');
+    }
+
+    public function markReview(Request $request, Order $order): RedirectResponse
+    {
+        /** @var User $admin */
+        $admin = $request->user();
+        $this->authorize('markManualReview', $order);
+
+        $validated = $request->validate([
+            'reason' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        OrderLivenessService::markRequiresManualReview(
+            $order,
+            $admin,
+            $validated['reason'] ?? null,
+        );
+
+        return back()->with('success', 'Pesanan ditandai butuh peninjauan manual.');
+    }
+
     public function index(Request $request): Response
     {
         $validated = $request->validate([
             'q' => ['nullable', 'string', 'max:255'],
+            'liveness' => ['nullable', 'string', Rule::in(OrderLivenessService::filterValues())],
             'page' => ['nullable', 'integer', 'min:1'],
         ]);
 
@@ -41,6 +103,8 @@ class AdminOrderController extends Controller
             });
         }
 
+        OrderLivenessService::applyFilter($query, $validated['liveness'] ?? null);
+
         $orders = $query->latest()->paginate(10)->withQueryString();
 
         return Inertia::render('admin/orders/index', [
@@ -51,7 +115,14 @@ class AdminOrderController extends Controller
                     'code' => $order->status->value,
                     'label' => $order->status->label(),
                 ],
-                'total_price' => $order->total_price,
+                'liveness' => [
+                    'code' => OrderLivenessService::livenessLabel($order),
+                    'reasons' => OrderLivenessService::stuckReasonsFor($order),
+                    'requires_manual_review' => (bool) $order->requires_manual_review,
+                    'requires_manual_review_reason' => $order->requires_manual_review_reason,
+                    'stuck_detected_at' => $order->stuck_detected_at?->toIso8601String(),
+                    'expires_at' => $order->expires_at?->toIso8601String(),
+                ],
                 'payment' => [
                     'status' => [
                         'code' => $order->payment_status->value,
@@ -67,14 +138,14 @@ class AdminOrderController extends Controller
                     'confirmed_at' => $order->payment_confirmed_at?->toIso8601String(),
                     'rejection_reason' => $order->payment_rejection_reason,
                 ],
-                'items_count' => $order->items_count,
                 'buyer' => [
                     'id' => $order->user->id,
                     'name' => $order->user->name,
                     'email' => $order->user->email,
                 ],
+                'total_price' => $order->total_price,
+                'items_count' => $order->items_count,
                 'items' => $order->items
-                    ->take(3)
                     ->map(fn (OrderItem $item) => [
                         'id' => $item->id,
                         'product_name' => $item->product_name,
@@ -102,7 +173,21 @@ class AdminOrderController extends Controller
             ]),
             'filters' => [
                 'q' => $validated['q'] ?? '',
+                'liveness' => $validated['liveness'] ?? '',
             ],
+            'livenessOptions' => collect(OrderLivenessService::filterValues())
+                ->map(fn (string $value) => [
+                    'code' => $value,
+                    'label' => match ($value) {
+                        'active' => 'Aktif',
+                        'expired' => 'Expired unpaid',
+                        'stuck' => 'Stuck',
+                        'requires_action' => 'Butuh tindakan',
+                        default => $value,
+                    },
+                ])
+                ->values()
+                ->all(),
         ]);
     }
 

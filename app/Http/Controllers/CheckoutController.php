@@ -15,6 +15,8 @@ use App\Models\Product;
 use App\Models\UpJurusanConsignment;
 use App\Models\UpJurusanStockMovement;
 use App\Models\User;
+use App\Support\OrderItemCancellation;
+use App\Support\PreOrderRules;
 use App\Support\TransactionCode;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -43,13 +45,19 @@ class CheckoutController extends Controller
                 ->when($selectedIds !== [], fn ($query) => $query->whereIn('id', $selectedIds))
                 ->latest()
                 ->get()
-                ->map(fn (CartItem $cartItem) => [
-                    'id' => $cartItem->id,
-                    'source' => 'cart',
-                    'quantity' => $cartItem->quantity,
-                    'subtotal' => $cartItem->quantity * $cartItem->product->price,
-                    'product' => $this->productPayload($cartItem->product),
-                ])
+                ->map(function (CartItem $cartItem) {
+                    $invalidReasons = PreOrderRules::invalidReasons($cartItem->product, $cartItem->quantity);
+
+                    return [
+                        'id' => $cartItem->id,
+                        'source' => 'cart',
+                        'quantity' => $cartItem->quantity,
+                        'subtotal' => $cartItem->quantity * $cartItem->product->price,
+                        'is_valid' => $invalidReasons === [],
+                        'invalid_reasons' => $invalidReasons,
+                        'product' => $this->productPayload($cartItem->product),
+                    ];
+                })
                 ->values();
 
         return Inertia::render('checkout/confirm', [
@@ -57,6 +65,7 @@ class CheckoutController extends Controller
             'summary' => [
                 'total_items' => $items->sum('quantity'),
                 'total_price' => $items->sum('subtotal'),
+                'has_invalid_items' => $items->contains(fn (array $item) => ($item['is_valid'] ?? true) === false),
             ],
         ]);
     }
@@ -90,6 +99,7 @@ class CheckoutController extends Controller
                 'pickup_location' => $validated['pickup_method'] === 'delivery'
                     ? $validated['pickup_location'] ?? null
                     : null,
+                'expires_at' => now()->addHours(OrderItemCancellation::UNPAID_EXPIRY_HOURS),
             ]);
             $totalPrice = 0;
 
@@ -249,6 +259,8 @@ class CheckoutController extends Controller
                 'cart' => "Quantity {$product->name} melebihi stok tersedia.",
             ]);
         }
+
+        PreOrderRules::assertPurchasableForCheckout($product, $quantity);
 
         $subtotal = $quantity * $product->price;
 

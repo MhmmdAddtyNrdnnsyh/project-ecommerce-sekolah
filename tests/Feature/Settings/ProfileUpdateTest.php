@@ -1,5 +1,7 @@
 <?php
 
+use App\Enums\OrderItemStatus;
+use App\Enums\OrderStatus;
 use App\Enums\UserRole;
 use App\Models\CartItem;
 use App\Models\Order;
@@ -61,17 +63,21 @@ test('user can delete their account', function () {
     expect($user->fresh())->toBeNull();
 });
 
-test('buyer can safely delete account with cart and orders', function () {
+test('buyer can safely delete account with cart and completed orders', function () {
     $user = User::factory()->create(['role' => UserRole::Buyer]);
     $product = Product::factory()->approved()->create();
-    $order = Order::factory()->for($user)->create();
+    $order = Order::factory()->for($user)->create([
+        'status' => OrderStatus::Completed,
+    ]);
 
     CartItem::query()->create([
         'user_id' => $user->id,
         'product_id' => $product->id,
         'quantity' => 1,
     ]);
-    OrderItem::factory()->for($order)->for($product)->create();
+    OrderItem::factory()->for($order)->for($product)->create([
+        'status' => OrderItemStatus::Completed,
+    ]);
 
     $this
         ->actingAs($user)
@@ -86,6 +92,28 @@ test('buyer can safely delete account with cart and orders', function () {
     $this->assertDatabaseMissing('cart_items', ['user_id' => $user->id]);
     $this->assertDatabaseMissing('orders', ['user_id' => $user->id]);
     $this->assertDatabaseMissing('order_items', ['order_id' => $order->id]);
+});
+
+test('buyer cannot delete account while order is active', function () {
+    $user = User::factory()->create(['role' => UserRole::Buyer]);
+    $product = Product::factory()->approved()->create();
+    $order = Order::factory()->for($user)->create([
+        'status' => OrderStatus::Pending,
+    ]);
+    OrderItem::factory()->for($order)->for($product)->create([
+        'status' => OrderItemStatus::Pending,
+    ]);
+
+    $this
+        ->actingAs($user)
+        ->from(route('profile.edit'))
+        ->delete(route('profile.destroy'), [
+            'password' => 'password',
+        ])
+        ->assertRedirect(route('profile.edit'))
+        ->assertSessionHasErrors('password');
+
+    expect($user->fresh())->not->toBeNull();
 });
 
 test('correct password must be provided to delete account', function () {

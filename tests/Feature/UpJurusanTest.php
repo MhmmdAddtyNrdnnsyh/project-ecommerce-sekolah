@@ -1033,6 +1033,7 @@ test('picket officer can update assigned up jurusan order item status', function
         'order_id' => $order->id,
         'product_id' => $product->id,
         'status' => OrderItemStatus::Pending,
+        'payment_status' => PaymentStatus::Paid,
     ]);
 
     $this->actingAs($picket)
@@ -1111,6 +1112,7 @@ test('picket officer cannot update assigned up jurusan order item status from se
         'order_id' => $order->id,
         'product_id' => $product->id,
         'status' => OrderItemStatus::Sent,
+        'payment_status' => PaymentStatus::Paid,
     ]);
 
     $this->actingAs($picket)
@@ -1120,6 +1122,46 @@ test('picket officer cannot update assigned up jurusan order item status from se
         ->assertSessionHasErrors('status');
 
     expect($orderItem->fresh()->status)->toBe(OrderItemStatus::Sent);
+});
+
+test('picket officer uses pre-order fulfillment path for pre-order items', function () {
+    $upJurusan = UpJurusan::factory()->create();
+    $picket = User::factory()->create([
+        'role' => UserRole::PicketOfficer,
+        'up_jurusan_id' => $upJurusan->id,
+    ]);
+    $buyer = User::factory()->create(['role' => UserRole::Buyer]);
+    $seller = User::factory()->create(['role' => UserRole::Seller]);
+    $product = Product::factory()->for($seller, 'seller')->create([
+        'sales_method' => ProductSalesMethod::UpJurusan,
+    ]);
+    UpJurusanConsignment::factory()->create([
+        'seller_id' => $seller->id,
+        'product_id' => $product->id,
+        'up_jurusan_id' => $upJurusan->id,
+    ]);
+    $order = Order::factory()->create(['user_id' => $buyer->id]);
+    $orderItem = OrderItem::factory()->create([
+        'order_id' => $order->id,
+        'product_id' => $product->id,
+        'status' => OrderItemStatus::Pending,
+        'payment_status' => PaymentStatus::Paid,
+        'is_pre_order' => true,
+    ]);
+
+    $this->actingAs($picket)
+        ->put(route('picket.orders.update-status', $orderItem), [
+            'status' => OrderItemStatus::Packed->value,
+        ])
+        ->assertSessionHasErrors('status');
+
+    $this->actingAs($picket)
+        ->put(route('picket.orders.update-status', $orderItem), [
+            'status' => OrderItemStatus::InProduction->value,
+        ])
+        ->assertRedirect(route('picket.orders'));
+
+    expect($orderItem->fresh()->status)->toBe(OrderItemStatus::InProduction);
 });
 
 test('picket officer can submit daily sales report', function () {

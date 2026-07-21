@@ -10,6 +10,7 @@ enum OrderItemStatus: string
     case Packed = 'packed';
     case Sent = 'sent';
     case Completed = 'completed';
+    case Cancelled = 'cancelled';
 
     public function label(): string
     {
@@ -20,6 +21,7 @@ enum OrderItemStatus: string
             self::Packed => 'Dikemas',
             self::Sent => 'Dikirim',
             self::Completed => 'Selesai',
+            self::Cancelled => 'Dibatalkan',
         };
     }
 
@@ -37,8 +39,7 @@ enum OrderItemStatus: string
             self::Pending => self::Packed,
             self::Packed => self::Sent,
             self::Sent => self::Completed,
-            self::InProduction, self::Ready => null,
-            self::Completed => null,
+            self::InProduction, self::Ready, self::Completed, self::Cancelled => null,
         };
     }
 
@@ -49,7 +50,15 @@ enum OrderItemStatus: string
             self::InProduction => self::Ready,
             self::Ready => self::Sent,
             self::Sent => self::Completed,
-            self::Packed, self::Completed => null,
+            self::Packed, self::Completed, self::Cancelled => null,
+        };
+    }
+
+    public function isTerminal(): bool
+    {
+        return match ($this) {
+            self::Completed, self::Cancelled => true,
+            default => false,
         };
     }
 }

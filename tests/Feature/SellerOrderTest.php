@@ -421,6 +421,7 @@ test('seller can update status from pending to packed', function () {
         'order_id' => $order->id,
         'product_id' => $product->id,
         'status' => OrderItemStatus::Pending,
+        'payment_status' => PaymentStatus::Paid,
     ]);
 
     $this->actingAs($seller);
@@ -439,6 +440,30 @@ test('seller can update status from pending to packed', function () {
     ]);
 });
 
+test('seller cannot update status when payment is unpaid', function () {
+    $seller = User::factory()->create(['role' => UserRole::Seller]);
+    $buyer = User::factory()->create();
+
+    $product = Product::factory()->for($seller, 'seller')->for($this->category)->approved()->create();
+    $order = Order::factory()->create(['user_id' => $buyer->id]);
+    $orderItem = OrderItem::factory()->create([
+        'order_id' => $order->id,
+        'product_id' => $product->id,
+        'status' => OrderItemStatus::Pending,
+        'payment_status' => PaymentStatus::Unpaid,
+    ]);
+
+    $this->actingAs($seller)
+        ->from(route('seller.orders.index'))
+        ->put(route('seller.orders.update-status', $orderItem), [
+            'status' => OrderItemStatus::Packed->value,
+        ])
+        ->assertRedirect(route('seller.orders.index'))
+        ->assertSessionHasErrors('status');
+
+    expect($orderItem->fresh()->status)->toBe(OrderItemStatus::Pending);
+});
+
 test('seller can update status from packed to sent', function () {
     $seller = User::factory()->create(['role' => UserRole::Seller]);
     $buyer = User::factory()->create();
@@ -449,6 +474,7 @@ test('seller can update status from packed to sent', function () {
         'order_id' => $order->id,
         'product_id' => $product->id,
         'status' => OrderItemStatus::Packed,
+        'payment_status' => PaymentStatus::Paid,
     ]);
 
     $this->actingAs($seller);
@@ -477,6 +503,7 @@ test('seller cannot update status from sent to completed', function () {
         'order_id' => $order->id,
         'product_id' => $product->id,
         'status' => OrderItemStatus::Sent,
+        'payment_status' => PaymentStatus::Paid,
     ]);
 
     $this->actingAs($seller);
@@ -495,7 +522,7 @@ test('seller cannot update status from sent to completed', function () {
     ]);
 });
 
-test('seller cannot skip status from sent to completed', function () {
+test('seller cannot skip status from pending to sent', function () {
     $seller = User::factory()->create(['role' => UserRole::Seller]);
     $buyer = User::factory()->create();
 
@@ -505,6 +532,7 @@ test('seller cannot skip status from sent to completed', function () {
         'order_id' => $order->id,
         'product_id' => $product->id,
         'status' => OrderItemStatus::Pending,
+        'payment_status' => PaymentStatus::Paid,
     ]);
 
     $this->actingAs($seller);
@@ -522,6 +550,35 @@ test('seller cannot skip status from sent to completed', function () {
     ]);
 });
 
+test('seller can reject unpaid payment for self managed order item', function () {
+    $seller = User::factory()->create(['role' => UserRole::Seller]);
+    $buyer = User::factory()->create();
+    $product = Product::factory()->for($seller, 'seller')->for($this->category)->approved()->create();
+    $order = Order::factory()->create([
+        'user_id' => $buyer->id,
+        'payment_status' => PaymentStatus::Unpaid,
+    ]);
+    $orderItem = OrderItem::factory()->create([
+        'order_id' => $order->id,
+        'product_id' => $product->id,
+        'payment_status' => PaymentStatus::Unpaid,
+    ]);
+
+    $this->actingAs($seller)
+        ->from(route('seller.orders.show', $orderItem))
+        ->post(route('seller.orders.payment.reject', $orderItem), [
+            'payment_rejection_reason' => 'Tunai tidak diterima.',
+        ])
+        ->assertRedirect(route('seller.orders.show', $orderItem));
+
+    $orderItem->refresh();
+    $order->refresh();
+
+    expect($orderItem->payment_status)->toBe(PaymentStatus::Rejected)
+        ->and($orderItem->payment_rejection_reason)->toBe('Tunai tidak diterima.')
+        ->and($order->payment_status)->toBe(PaymentStatus::Rejected);
+});
+
 test('seller cannot go backwards from packed to pending', function () {
     $seller = User::factory()->create(['role' => UserRole::Seller]);
     $buyer = User::factory()->create();
@@ -532,6 +589,7 @@ test('seller cannot go backwards from packed to pending', function () {
         'order_id' => $order->id,
         'product_id' => $product->id,
         'status' => OrderItemStatus::Packed,
+        'payment_status' => PaymentStatus::Paid,
     ]);
 
     $this->actingAs($seller);
@@ -563,6 +621,7 @@ test('seller can progress pre-order status through production flow', function ()
         'order_id' => $order->id,
         'product_id' => $product->id,
         'status' => OrderItemStatus::Pending,
+        'payment_status' => PaymentStatus::Paid,
         'is_pre_order' => true,
         'pre_order_estimate_days' => 7,
     ]);
@@ -605,6 +664,7 @@ test('seller cannot skip pre-order status to ready', function () {
     $orderItem = OrderItem::factory()->create([
         'product_id' => $product->id,
         'status' => OrderItemStatus::Pending,
+        'payment_status' => PaymentStatus::Paid,
         'is_pre_order' => true,
     ]);
 
@@ -625,6 +685,7 @@ test('seller cannot repeat the current order item status', function () {
     $orderItem = OrderItem::factory()->create([
         'product_id' => $product->id,
         'status' => OrderItemStatus::Packed,
+        'payment_status' => PaymentStatus::Paid,
     ]);
 
     $this->actingAs($seller);
@@ -642,12 +703,15 @@ test('seller cannot repeat the current order item status', function () {
 test('seller receives an Indonesian validation error for an invalid status', function () {
     $seller = User::factory()->create(['role' => UserRole::Seller]);
     $product = Product::factory()->for($seller, 'seller')->for($this->category)->approved()->create();
-    $orderItem = OrderItem::factory()->create(['product_id' => $product->id]);
+    $orderItem = OrderItem::factory()->create([
+        'product_id' => $product->id,
+        'payment_status' => PaymentStatus::Paid,
+    ]);
 
     $this->actingAs($seller);
 
     $this->from(route('seller.orders.index'))
-        ->put(route('seller.orders.update-status', $orderItem), ['status' => 'cancelled'])
+        ->put(route('seller.orders.update-status', $orderItem), ['status' => 'not-a-status'])
         ->assertRedirect(route('seller.orders.index'))
         ->assertSessionHasErrors([
             'status' => 'Status pesanan tidak valid.',

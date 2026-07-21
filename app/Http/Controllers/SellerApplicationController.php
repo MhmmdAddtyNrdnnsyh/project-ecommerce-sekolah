@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Enums\UserRole;
 use App\Models\SellerApplication;
 use App\Models\User;
+use App\Support\ActorLifecycle;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -79,6 +80,11 @@ class SellerApplicationController extends Controller
     public function approve(Request $request, SellerApplication $application): RedirectResponse
     {
         $this->ensurePending($application);
+
+        /** @var User $applicant */
+        $applicant = $application->user;
+        ActorLifecycle::assertCanPromoteToSeller($applicant);
+        $this->authorize('promoteToSeller', $applicant);
 
         DB::transaction(function () use ($request, $application) {
             $application->update([

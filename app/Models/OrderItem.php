@@ -21,6 +21,7 @@ use Illuminate\Support\Carbon;
  * @property int $quantity
  * @property int $subtotal
  * @property OrderItemStatus $status
+ * @property Carbon|null $status_changed_at
  * @property PaymentStatus $payment_status
  * @property PaymentMethod $payment_method
  * @property Carbon|null $payment_confirmed_at
@@ -31,14 +32,30 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $pre_order_deadline
  * @property int|null $pre_order_min_quantity
  * @property string|null $pre_order_note
+ * @property Carbon|null $cancelled_at
+ * @property int|null $cancelled_by
+ * @property string|null $cancel_reason
  * @property Order $order
  * @property Product $product
  */
-#[Fillable(['order_id', 'product_id', 'product_name', 'price', 'quantity', 'subtotal', 'status', 'payment_status', 'payment_method', 'payment_confirmed_at', 'payment_confirmed_by', 'payment_rejection_reason', 'is_pre_order', 'pre_order_estimate_days', 'pre_order_deadline', 'pre_order_min_quantity', 'pre_order_note'])]
+#[Fillable(['order_id', 'product_id', 'product_name', 'price', 'quantity', 'subtotal', 'status', 'status_changed_at', 'payment_status', 'payment_method', 'payment_confirmed_at', 'payment_confirmed_by', 'payment_rejection_reason', 'is_pre_order', 'pre_order_estimate_days', 'pre_order_deadline', 'pre_order_min_quantity', 'pre_order_note', 'cancelled_at', 'cancelled_by', 'cancel_reason'])]
 class OrderItem extends Model
 {
     /** @use HasFactory<OrderItemFactory> */
     use HasFactory;
+
+    protected static function booted(): void
+    {
+        static::creating(function (OrderItem $item): void {
+            $item->status_changed_at ??= now();
+        });
+
+        static::updating(function (OrderItem $item): void {
+            if ($item->isDirty('status')) {
+                $item->status_changed_at = now();
+            }
+        });
+    }
 
     /**
      * @return array<string, string>
@@ -50,6 +67,7 @@ class OrderItem extends Model
             'quantity' => 'integer',
             'subtotal' => 'integer',
             'status' => OrderItemStatus::class,
+            'status_changed_at' => 'datetime',
             'payment_status' => PaymentStatus::class,
             'payment_method' => PaymentMethod::class,
             'payment_confirmed_at' => 'datetime',
@@ -57,6 +75,7 @@ class OrderItem extends Model
             'pre_order_estimate_days' => 'integer',
             'pre_order_deadline' => 'date',
             'pre_order_min_quantity' => 'integer',
+            'cancelled_at' => 'datetime',
         ];
     }
 

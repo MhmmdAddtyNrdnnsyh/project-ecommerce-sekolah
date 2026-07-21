@@ -2,6 +2,7 @@
 
 use App\Enums\OrderItemStatus;
 use App\Enums\OrderStatus;
+use App\Enums\PaymentStatus;
 use App\Enums\UserRole;
 use App\Models\Order;
 use App\Models\OrderItem;
@@ -98,6 +99,7 @@ test('buyer can complete sent order items after receiving the order', function (
     ]);
     $orderItem = OrderItem::factory()->for($order)->for($product)->create([
         'status' => OrderItemStatus::Sent,
+        'payment_status' => PaymentStatus::Paid,
     ]);
 
     $this->actingAs($buyer)
@@ -107,14 +109,29 @@ test('buyer can complete sent order items after receiving the order', function (
         ->assertSessionHas('success');
 
     expect($orderItem->fresh()->status)->toBe(OrderItemStatus::Completed);
+    expect($order->fresh()->status)->toBe(OrderStatus::Completed);
+    expect($order->fresh()->items->every(fn ($item) => $item->status === OrderItemStatus::Completed))->toBeTrue();
+});
+
+test('buyer cannot complete sent items when payment is unpaid', function () {
+    $buyer = User::factory()->create(['role' => UserRole::Buyer]);
+    $seller = User::factory()->create(['role' => UserRole::Seller]);
+    $product = Product::factory()->for($seller, 'seller')->approved()->create();
+    $order = Order::factory()->for($buyer)->create([
+        'status' => OrderStatus::Pending,
+    ]);
+    $orderItem = OrderItem::factory()->for($order)->for($product)->create([
+        'status' => OrderItemStatus::Sent,
+        'payment_status' => PaymentStatus::Unpaid,
+    ]);
 
     $this->actingAs($buyer)
-        ->get(route('orders.show', $order))
-        ->assertOk()
-        ->assertInertia(fn (Assert $page) => $page
-            ->where('order.status.code', OrderItemStatus::Completed->value)
-            ->where('order.can_complete', false),
-        );
+        ->from(route('orders.show', $order))
+        ->post(route('orders.complete', $order))
+        ->assertRedirect(route('orders.show', $order))
+        ->assertSessionHasErrors('order');
+
+    expect($orderItem->fresh()->status)->toBe(OrderItemStatus::Sent);
 });
 
 test('buyer can view an empty order list', function () {

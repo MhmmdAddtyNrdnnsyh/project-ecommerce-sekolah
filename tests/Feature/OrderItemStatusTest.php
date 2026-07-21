@@ -10,20 +10,24 @@ use App\Models\Product;
 use App\Models\User;
 
 test('order item status exposes values labels and next transitions', function () {
-    expect(OrderItemStatus::values())->toBe(['pending', 'in_production', 'ready', 'packed', 'sent', 'completed'])
+    expect(OrderItemStatus::values())->toBe(['pending', 'in_production', 'ready', 'packed', 'sent', 'completed', 'cancelled'])
         ->and(OrderItemStatus::Pending->label())->toBe('Menunggu')
         ->and(OrderItemStatus::InProduction->label())->toBe('Diproduksi')
         ->and(OrderItemStatus::Ready->label())->toBe('Siap')
         ->and(OrderItemStatus::Packed->label())->toBe('Dikemas')
         ->and(OrderItemStatus::Sent->label())->toBe('Dikirim')
         ->and(OrderItemStatus::Completed->label())->toBe('Selesai')
+        ->and(OrderItemStatus::Cancelled->label())->toBe('Dibatalkan')
         ->and(OrderItemStatus::Pending->next())->toBe(OrderItemStatus::Packed)
         ->and(OrderItemStatus::Packed->next())->toBe(OrderItemStatus::Sent)
         ->and(OrderItemStatus::Sent->next())->toBe(OrderItemStatus::Completed)
         ->and(OrderItemStatus::Completed->next())->toBeNull()
+        ->and(OrderItemStatus::Cancelled->next())->toBeNull()
         ->and(OrderItemStatus::Pending->nextForPreOrder())->toBe(OrderItemStatus::InProduction)
         ->and(OrderItemStatus::InProduction->nextForPreOrder())->toBe(OrderItemStatus::Ready)
-        ->and(OrderItemStatus::Ready->nextForPreOrder())->toBe(OrderItemStatus::Sent);
+        ->and(OrderItemStatus::Ready->nextForPreOrder())->toBe(OrderItemStatus::Sent)
+        ->and(OrderItemStatus::Completed->isTerminal())->toBeTrue()
+        ->and(OrderItemStatus::Cancelled->isTerminal())->toBeTrue();
 });
 
 test('order item has default pending status', function () {

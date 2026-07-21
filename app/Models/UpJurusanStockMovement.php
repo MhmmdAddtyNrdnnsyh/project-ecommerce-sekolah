@@ -20,12 +20,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $commission_amount
  * @property int $seller_amount
  * @property string|null $note
+ * @property int|null $reverses_movement_id
  * @property UpJurusanConsignment|null $consignment
  * @property Product|null $product
  * @property UpJurusanPosSale|null $posSale
  * @property User $user
  */
-#[Fillable(['up_jurusan_consignment_id', 'product_id', 'up_jurusan_pos_sale_id', 'order_id', 'user_id', 'type', 'quantity', 'unit_price', 'gross_amount', 'commission_amount', 'seller_amount', 'note'])]
+#[Fillable(['up_jurusan_consignment_id', 'product_id', 'up_jurusan_pos_sale_id', 'order_id', 'user_id', 'type', 'quantity', 'unit_price', 'gross_amount', 'commission_amount', 'seller_amount', 'note', 'reverses_movement_id'])]
 class UpJurusanStockMovement extends Model
 {
     /**

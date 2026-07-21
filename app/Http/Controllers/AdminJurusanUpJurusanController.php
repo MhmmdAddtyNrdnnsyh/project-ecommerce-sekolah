@@ -12,6 +12,7 @@ use App\Models\UpJurusan;
 use App\Models\UpJurusanConsignment;
 use App\Models\UpJurusanStockMovement;
 use App\Models\User;
+use App\Support\ActorLifecycle;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -166,16 +167,65 @@ class AdminJurusanUpJurusanController extends Controller
             ])->redirectTo(route('admin-jurusan.up-jurusan.index'));
         }
 
-        if ($this->hasPicketOfficer($upJurusan) && $picket->up_jurusan_id !== $upJurusan->id) {
-            throw ValidationException::withMessages([
-                'picket_id' => 'UP Jurusan ini sudah memiliki satu picket officer.',
-            ])->redirectTo(route('admin-jurusan.up-jurusan.index'));
+        $currentPicket = User::query()
+            ->where('role', UserRole::PicketOfficer)
+            ->where('up_jurusan_id', $upJurusan->id)
+            ->whereKeyNot($picket->id)
+            ->first();
+
+        if ($currentPicket !== null) {
+            ActorLifecycle::assertCanReassignPicket($upJurusan);
+            $this->authorize('reassignPicket', $upJurusan);
+            $currentPicket->update(['up_jurusan_id' => null]);
         }
 
         $picket->update(['up_jurusan_id' => $upJurusan->id]);
 
         return to_route('admin-jurusan.up-jurusan.index')
             ->with('success', 'Picket officer berhasil ditugaskan.');
+    }
+
+    public function unassignPicket(Request $request, UpJurusan $upJurusan): RedirectResponse
+    {
+        /** @var User $adminJurusan */
+        $adminJurusan = $request->user();
+
+        abort_unless($upJurusan->admin_jurusan_id === $adminJurusan->id, 403);
+
+        ActorLifecycle::assertCanReassignPicket($upJurusan);
+        $this->authorize('reassignPicket', $upJurusan);
+
+        $picket = User::query()
+            ->where('role', UserRole::PicketOfficer)
+            ->where('up_jurusan_id', $upJurusan->id)
+            ->first();
+
+        if ($picket === null) {
+            throw ValidationException::withMessages([
+                'picket_id' => 'UP Jurusan ini belum memiliki picket officer.',
+            ])->redirectTo(route('admin-jurusan.up-jurusan.index'));
+        }
+
+        $picket->update(['up_jurusan_id' => null]);
+
+        return to_route('admin-jurusan.up-jurusan.index')
+            ->with('success', 'Picket officer berhasil dilepas.');
+    }
+
+    public function destroy(Request $request, UpJurusan $upJurusan): RedirectResponse
+    {
+        /** @var User $adminJurusan */
+        $adminJurusan = $request->user();
+
+        abort_unless($upJurusan->admin_jurusan_id === $adminJurusan->id, 403);
+
+        ActorLifecycle::assertCanDeleteUpJurusan($upJurusan);
+        $this->authorize('delete', $upJurusan);
+
+        $upJurusan->delete();
+
+        return to_route('admin-jurusan.up-jurusan.index')
+            ->with('success', 'UP Jurusan berhasil dihapus.');
     }
 
     public function storePicket(Request $request, UpJurusan $upJurusan): RedirectResponse

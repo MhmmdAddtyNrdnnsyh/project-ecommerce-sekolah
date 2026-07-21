@@ -9,7 +9,10 @@ use App\Http\Requests\Seller\UpdateOrderItemStatusRequest;
 use App\Models\OrderItem;
 use App\Models\UpJurusanStockMovement;
 use App\Models\User;
+use App\Support\OrderItemCancellation;
+use App\Support\OrderItemFulfillment;
 use App\Support\OrderPaymentSync;
+use App\Support\OrderStatusSync;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -203,29 +206,17 @@ class SellerOrderController extends Controller
 
         $newStatus = OrderItemStatus::from($request->string('status')->toString());
 
-        if ($newStatus === OrderItemStatus::Completed) {
-            throw ValidationException::withMessages([
-                'status' => 'Pesanan selesai hanya bisa dikonfirmasi oleh buyer setelah diterima.',
-            ]);
-        }
-
         DB::transaction(function () use ($orderItem, $newStatus) {
             /** @var OrderItem $current */
             $current = OrderItem::query()
+                ->with('order:id')
                 ->lockForUpdate()
                 ->findOrFail($orderItem->id);
 
-            $expectedNext = $current->is_pre_order
-                ? $current->status->nextForPreOrder()
-                : $current->status->next();
-
-            if ($expectedNext === null || $newStatus !== $expectedNext) {
-                throw ValidationException::withMessages([
-                    'status' => 'Status tidak valid. Seller hanya dapat mengubah status sampai dikirim.',
-                ]);
-            }
+            OrderItemFulfillment::assertCanAdvance($current, $newStatus);
 
             $current->update(['status' => $newStatus]);
+            OrderStatusSync::sync($current->order);
         });
 
         return to_route('seller.orders.index')
@@ -260,6 +251,12 @@ class SellerOrderController extends Controller
                 ]);
             }
 
+            if ($current->payment_status === PaymentStatus::Rejected) {
+                throw ValidationException::withMessages([
+                    'payment' => 'Pembayaran item ini sudah ditolak.',
+                ]);
+            }
+
             $current->update([
                 'payment_status' => PaymentStatus::Paid,
                 'payment_method' => PaymentMethod::Cash,
@@ -269,9 +266,91 @@ class SellerOrderController extends Controller
             ]);
 
             OrderPaymentSync::sync($current->order);
+            OrderStatusSync::sync($current->order);
         });
 
         return back()->with('success', 'Pelunasan item berhasil dikonfirmasi.');
+    }
+
+    public function rejectPayment(Request $request, OrderItem $orderItem): RedirectResponse
+    {
+        /** @var User $seller */
+        $seller = $request->user();
+
+        $validated = $request->validate([
+            'payment_rejection_reason' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        DB::transaction(function () use ($orderItem, $seller, $validated) {
+            /** @var OrderItem $current */
+            $current = OrderItem::query()
+                ->with(['order:id', 'product:id,seller_id,up_jurusan_id,sales_method'])
+                ->lockForUpdate()
+                ->findOrFail($orderItem->id);
+
+            if ($current->product->seller_id !== $seller->id) {
+                abort(403);
+            }
+
+            if ($current->product->usesConsignmentStock()) {
+                throw ValidationException::withMessages([
+                    'payment' => 'Penolakan pelunasan produk titipan dikelola oleh picket officer UP Jurusan.',
+                ]);
+            }
+
+            if ($current->payment_status === PaymentStatus::Paid) {
+                throw ValidationException::withMessages([
+                    'payment' => 'Pembayaran yang sudah lunas tidak dapat ditolak.',
+                ]);
+            }
+
+            if ($current->payment_status === PaymentStatus::Rejected) {
+                throw ValidationException::withMessages([
+                    'payment' => 'Pembayaran item ini sudah ditolak.',
+                ]);
+            }
+
+            if ($current->status->isTerminal()) {
+                throw ValidationException::withMessages([
+                    'payment' => 'Item yang sudah selesai atau dibatalkan tidak dapat ditolak pembayarannya.',
+                ]);
+            }
+
+            $current->update([
+                'payment_status' => PaymentStatus::Rejected,
+                'payment_confirmed_at' => null,
+                'payment_confirmed_by' => null,
+                'payment_rejection_reason' => $validated['payment_rejection_reason'] ?? null,
+            ]);
+
+            OrderPaymentSync::sync($current->order);
+            OrderStatusSync::sync($current->order);
+        });
+
+        return back()->with('success', 'Pembayaran item ditolak.');
+    }
+
+    public function cancel(Request $request, OrderItem $orderItem): RedirectResponse
+    {
+        /** @var User $seller */
+        $seller = $request->user();
+
+        $validated = $request->validate([
+            'cancel_reason' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        if ($orderItem->product->seller_id !== $seller->id) {
+            abort(403);
+        }
+
+        OrderItemCancellation::cancelItem(
+            $orderItem,
+            $seller,
+            $validated['cancel_reason'] ?? 'Dibatalkan oleh penjual',
+        );
+
+        return to_route('seller.orders.index')
+            ->with('success', 'Item pesanan berhasil dibatalkan.');
     }
 
     /**

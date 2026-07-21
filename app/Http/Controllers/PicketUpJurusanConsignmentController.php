@@ -15,12 +15,16 @@ use App\Models\UpJurusanDailyReportTransaction;
 use App\Models\UpJurusanPosSale;
 use App\Models\UpJurusanStockMovement;
 use App\Models\User;
+use App\Support\OrderItemCancellation;
+use App\Support\OrderItemFulfillment;
 use App\Support\OrderPaymentSync;
+use App\Support\OrderStatusSync;
 use App\Support\TransactionCode;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -468,28 +472,26 @@ class PicketUpJurusanConsignmentController extends Controller
         $picket = $request->user();
 
         $validated = $request->validate([
-            'status' => ['required', 'string', 'in:packed,sent'],
+            'status' => ['required', 'string', Rule::enum(OrderItemStatus::class)],
         ]);
 
         DB::transaction(function () use ($orderItem, $picket, $validated) {
             /** @var OrderItem $current */
             $current = OrderItem::query()
-                ->with('product.upJurusanConsignments:id,product_id,up_jurusan_id')
+                ->with([
+                    'order:id',
+                    'product.upJurusanConsignments:id,product_id,up_jurusan_id',
+                ])
                 ->lockForUpdate()
                 ->findOrFail($orderItem->id);
 
             $this->authorizeOrderItemPicket($picket, $current);
 
             $newStatus = OrderItemStatus::from($validated['status']);
-            $expectedNext = $current->status->next();
-
-            if ($expectedNext === null || $newStatus !== $expectedNext) {
-                throw ValidationException::withMessages([
-                    'status' => 'Status tidak valid. Picket hanya dapat mengubah status sampai dikirim.',
-                ]);
-            }
+            OrderItemFulfillment::assertCanAdvance($current, $newStatus);
 
             $current->update(['status' => $newStatus]);
+            OrderStatusSync::sync($current->order);
         });
 
         return to_route('picket.orders')
@@ -519,6 +521,12 @@ class PicketUpJurusanConsignmentController extends Controller
                 ]);
             }
 
+            if ($current->payment_status === PaymentStatus::Rejected) {
+                throw ValidationException::withMessages([
+                    'payment' => 'Pembayaran item ini sudah ditolak.',
+                ]);
+            }
+
             $current->update([
                 'payment_status' => PaymentStatus::Paid,
                 'payment_method' => PaymentMethod::Cash,
@@ -528,9 +536,84 @@ class PicketUpJurusanConsignmentController extends Controller
             ]);
 
             OrderPaymentSync::sync($current->order);
+            OrderStatusSync::sync($current->order);
         });
 
         return back()->with('success', 'Pelunasan item berhasil dikonfirmasi.');
+    }
+
+    public function rejectOrderPayment(Request $request, OrderItem $orderItem): RedirectResponse
+    {
+        /** @var User $picket */
+        $picket = $request->user();
+
+        $validated = $request->validate([
+            'payment_rejection_reason' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        DB::transaction(function () use ($orderItem, $picket, $validated) {
+            /** @var OrderItem $current */
+            $current = OrderItem::query()
+                ->with([
+                    'order:id',
+                    'product.upJurusanConsignments:id,product_id,up_jurusan_id',
+                ])
+                ->lockForUpdate()
+                ->findOrFail($orderItem->id);
+
+            $this->authorizeOrderItemPicket($picket, $current);
+
+            if ($current->payment_status === PaymentStatus::Paid) {
+                throw ValidationException::withMessages([
+                    'payment' => 'Pembayaran yang sudah lunas tidak dapat ditolak.',
+                ]);
+            }
+
+            if ($current->payment_status === PaymentStatus::Rejected) {
+                throw ValidationException::withMessages([
+                    'payment' => 'Pembayaran item ini sudah ditolak.',
+                ]);
+            }
+
+            if ($current->status->isTerminal()) {
+                throw ValidationException::withMessages([
+                    'payment' => 'Item yang sudah selesai atau dibatalkan tidak dapat ditolak pembayarannya.',
+                ]);
+            }
+
+            $current->update([
+                'payment_status' => PaymentStatus::Rejected,
+                'payment_confirmed_at' => null,
+                'payment_confirmed_by' => null,
+                'payment_rejection_reason' => $validated['payment_rejection_reason'] ?? null,
+            ]);
+
+            OrderPaymentSync::sync($current->order);
+            OrderStatusSync::sync($current->order);
+        });
+
+        return back()->with('success', 'Pembayaran item ditolak.');
+    }
+
+    public function cancelOrderItem(Request $request, OrderItem $orderItem): RedirectResponse
+    {
+        /** @var User $picket */
+        $picket = $request->user();
+
+        $validated = $request->validate([
+            'cancel_reason' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $orderItem->load(['product.upJurusanConsignments:id,product_id,up_jurusan_id']);
+        $this->authorizeOrderItemPicket($picket, $orderItem);
+
+        OrderItemCancellation::cancelItem(
+            $orderItem,
+            $picket,
+            $validated['cancel_reason'] ?? 'Dibatalkan oleh picket officer',
+        );
+
+        return back()->with('success', 'Item pesanan berhasil dibatalkan.');
     }
 
     private function quantity(Request $request): int

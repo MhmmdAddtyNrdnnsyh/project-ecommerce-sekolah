@@ -3,13 +3,18 @@
 namespace App\Http\Controllers;
 
 use App\Enums\OrderItemStatus;
+use App\Enums\PaymentStatus;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\User;
+use App\Support\OrderItemCancellation;
+use App\Support\OrderItemFulfillment;
+use App\Support\OrderStatusSync;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -57,7 +62,7 @@ class BuyerOrderController extends Controller
         DB::transaction(function () use ($order) {
             /** @var Order $current */
             $current = Order::query()
-                ->with('items:id,order_id,status')
+                ->with('items:id,order_id,status,payment_status')
                 ->lockForUpdate()
                 ->findOrFail($order->id);
 
@@ -65,16 +70,45 @@ class BuyerOrderController extends Controller
                 ->filter(fn (OrderItem $item) => $item->status === OrderItemStatus::Sent);
 
             if ($sentItems->isEmpty()) {
-                abort(422, 'Tidak ada item yang sedang dikirim untuk diselesaikan.');
+                throw ValidationException::withMessages([
+                    'order' => 'Tidak ada item yang sedang dikirim untuk diselesaikan.',
+                ]);
+            }
+
+            foreach ($sentItems as $item) {
+                OrderItemFulfillment::assertCanComplete($item);
             }
 
             OrderItem::query()
                 ->whereIn('id', $sentItems->pluck('id'))
                 ->update(['status' => OrderItemStatus::Completed]);
+
+            OrderStatusSync::sync($current->fresh(['items']));
         });
 
         return to_route('orders.show', $order)
             ->with('success', 'Pesanan berhasil ditandai selesai.');
+    }
+
+    public function cancel(Request $request, Order $order): RedirectResponse
+    {
+        /** @var User $buyer */
+        $buyer = $request->user();
+
+        abort_unless($order->user_id === $buyer->id, 404);
+
+        $validated = $request->validate([
+            'cancel_reason' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        OrderItemCancellation::cancelOrder(
+            $order,
+            $buyer,
+            $validated['cancel_reason'] ?? 'Dibatalkan oleh pembeli',
+        );
+
+        return to_route('orders.show', $order)
+            ->with('success', 'Pesanan berhasil dibatalkan.');
     }
 
     /**
@@ -92,7 +126,15 @@ class BuyerOrderController extends Controller
                 'code' => $status->value,
                 'label' => $status->label(),
             ],
-            'can_complete' => $order->items->contains(fn (OrderItem $item) => $item->status === OrderItemStatus::Sent),
+            'can_complete' => $order->items->contains(
+                fn (OrderItem $item) => $item->status === OrderItemStatus::Sent
+                    && $item->payment_status === PaymentStatus::Paid
+            ),
+            'can_cancel' => $order->items->contains(
+                fn (OrderItem $item) => $item->status !== OrderItemStatus::Cancelled
+                    && $item->status !== OrderItemStatus::Completed
+                    && $item->payment_status !== PaymentStatus::Paid
+            ),
             'total_price' => $order->total_price,
             'payment' => [
                 'status' => [
@@ -154,23 +196,33 @@ class BuyerOrderController extends Controller
             return OrderItemStatus::Pending;
         }
 
-        if ($statuses->contains(OrderItemStatus::Pending)) {
+        if ($statuses->every(fn ($status) => $status === OrderItemStatus::Cancelled)) {
+            return OrderItemStatus::Cancelled;
+        }
+
+        $active = $statuses->reject(fn ($status) => $status === OrderItemStatus::Cancelled);
+
+        if ($active->isEmpty()) {
+            return OrderItemStatus::Cancelled;
+        }
+
+        if ($active->contains(OrderItemStatus::Pending)) {
             return OrderItemStatus::Pending;
         }
 
-        if ($statuses->contains(OrderItemStatus::InProduction)) {
+        if ($active->contains(OrderItemStatus::InProduction)) {
             return OrderItemStatus::InProduction;
         }
 
-        if ($statuses->contains(OrderItemStatus::Ready)) {
+        if ($active->contains(OrderItemStatus::Ready)) {
             return OrderItemStatus::Ready;
         }
 
-        if ($statuses->contains(OrderItemStatus::Packed)) {
+        if ($active->contains(OrderItemStatus::Packed)) {
             return OrderItemStatus::Packed;
         }
 
-        if ($statuses->contains(OrderItemStatus::Sent)) {
+        if ($active->contains(OrderItemStatus::Sent)) {
             return OrderItemStatus::Sent;
         }
 

@@ -101,7 +101,7 @@ test('buyer can checkout pre-order product without ready stock', function () {
             'name' => 'Kaos Kelas PO',
             'price' => 50000,
             'stock' => 0,
-            'pre_order_deadline' => '2026-08-01',
+            'pre_order_deadline' => now()->addDays(10)->toDateString(),
             'pre_order_min_quantity' => 10,
             'pre_order_note' => 'Produksi setelah kuota terkumpul.',
         ]);
@@ -109,7 +109,7 @@ test('buyer can checkout pre-order product without ready stock', function () {
     CartItem::query()->create([
         'user_id' => $buyer->id,
         'product_id' => $product->id,
-        'quantity' => 2,
+        'quantity' => 10,
     ]);
 
     $response = $this->actingAs($buyer)
@@ -120,17 +120,16 @@ test('buyer can checkout pre-order product without ready stock', function () {
 
     $this->assertDatabaseHas('orders', [
         'user_id' => $buyer->id,
-        'total_price' => 100000,
+        'total_price' => 500000,
     ]);
     $response->assertRedirect(route('orders.show', $buyer->orders()->first()));
     $this->assertDatabaseHas('order_items', [
         'product_id' => $product->id,
         'product_name' => 'Kaos Kelas PO',
-        'quantity' => 2,
-        'subtotal' => 100000,
+        'quantity' => 10,
+        'subtotal' => 500000,
         'is_pre_order' => true,
         'pre_order_estimate_days' => 7,
-        'pre_order_deadline' => '2026-08-01 00:00:00',
         'pre_order_min_quantity' => 10,
         'pre_order_note' => 'Produksi setelah kuota terkumpul.',
     ]);
