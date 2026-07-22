@@ -105,9 +105,9 @@
     "semantic_hash": "de56365f05750231f217004990ed109d"
   },
   "app/Http/Controllers/AdminJurusanUpJurusanController.php": {
-    "mtime": 1784685290.702525,
-    "ast_hash": "5c6c5368c379c479ef441211f8e264b9",
-    "semantic_hash": "5c6c5368c379c479ef441211f8e264b9"
+    "mtime": 1784722181.9098816,
+    "ast_hash": "6a50bc6cbe45d2fda01727d7fdfddbda",
+    "semantic_hash": ""
   },
   "app/Http/Controllers/AdminOrderController.php": {
     "mtime": 1784653411.237507,
@@ -150,13 +150,13 @@
     "semantic_hash": "14d8f616683ff27dcd97086bff1e6c40"
   },
   "app/Http/Controllers/CartController.php": {
-    "mtime": 1784651254.688639,
-    "ast_hash": "a2fdae1d0f04bd67cafe93b158165438",
-    "semantic_hash": "a2fdae1d0f04bd67cafe93b158165438"
+    "mtime": 1784720793.7953176,
+    "ast_hash": "c6b11268399b4981f950d76c78e28508",
+    "semantic_hash": ""
   },
   "app/Http/Controllers/CheckoutController.php": {
-    "mtime": 1784719938.3984318,
-    "ast_hash": "dca91318084d81cd081db7d24a4f9be9",
+    "mtime": 1784720793.8835402,
+    "ast_hash": "0a59fe81a368fd3ced8b46fb24107636",
     "semantic_hash": ""
   },
   "app/Http/Controllers/Controller.php": {
@@ -385,9 +385,9 @@
     "semantic_hash": "505ce3534b7f9a28888a39986b10532a"
   },
   "app/Models/UpJurusan.php": {
-    "mtime": 1784298892.2690134,
-    "ast_hash": "b1383b1593dbb439e743857a3f31c8ec",
-    "semantic_hash": "b1383b1593dbb439e743857a3f31c8ec"
+    "mtime": 1784721995.1620953,
+    "ast_hash": "a50b59492360937792760274b5267a48",
+    "semantic_hash": ""
   },
   "app/Models/UpJurusanConsignment.php": {
     "mtime": 1784683165.4791467,
@@ -630,9 +630,9 @@
     "semantic_hash": "8b3b81ec40090fa9778dea4b38839e2c"
   },
   "database/factories/UpJurusanFactory.php": {
-    "mtime": 1784298892.2744617,
-    "ast_hash": "1782e1ec67bc2a86360c9e97a00c0e09",
-    "semantic_hash": "1782e1ec67bc2a86360c9e97a00c0e09"
+    "mtime": 1784721995.1623182,
+    "ast_hash": "3de685ac7181774f228929fc802d39c5",
+    "semantic_hash": ""
   },
   "database/factories/UserFactory.php": {
     "mtime": 1784298892.2745163,
@@ -1805,8 +1805,8 @@
     "semantic_hash": ""
   },
   "app/Support/DomainEventService.php": {
-    "mtime": 1784720172.4887278,
-    "ast_hash": "56baeb018ea166fd4b299cac37a6cc03",
+    "mtime": 1784721995.161445,
+    "ast_hash": "d35c3eac8d3fe99469172c3c912e1e7a",
     "semantic_hash": ""
   },
   "database/migrations/2026_07_22_000004_create_domain_events_table.php": {
@@ -1817,6 +1817,41 @@
   "tests/Unit/DomainEventServiceTest.php": {
     "mtime": 1784720277.806237,
     "ast_hash": "023044c2367c2cfba7388b38da4d2d21",
+    "semantic_hash": ""
+  },
+  "app/Support/PurchasableProductService.php": {
+    "mtime": 1784720793.7923176,
+    "ast_hash": "cea1b0286a9befd86e290deeb9664c28",
+    "semantic_hash": ""
+  },
+  "tests/Feature/CartPurchasableHygieneTest.php": {
+    "mtime": 1784721066.256489,
+    "ast_hash": "68be53d856d01e1e8e16446ad9a1db7e",
+    "semantic_hash": ""
+  },
+  "tests/Unit/PurchasableProductServiceTest.php": {
+    "mtime": 1784721168.3326113,
+    "ast_hash": "a7ef8664b77beafc21f0b4e3310e1a4c",
+    "semantic_hash": ""
+  },
+  "app/Enums/UpJurusanStatus.php": {
+    "mtime": 1784721995.0999985,
+    "ast_hash": "57ab47d93803c67710a5171257a50a7f",
+    "semantic_hash": ""
+  },
+  "app/Support/OrganizationLifecycleService.php": {
+    "mtime": 1784721995.1059985,
+    "ast_hash": "ec7d9c6ff373cbee75129bd3b372f8b0",
+    "semantic_hash": ""
+  },
+  "database/migrations/2026_07_22_000005_add_status_to_up_jurusans_table.php": {
+    "mtime": 1784721995.1029985,
+    "ast_hash": "dc5648f18780d80e06b510a56c994da4",
+    "semantic_hash": ""
+  },
+  "tests/Unit/OrganizationLifecycleServiceTest.php": {
+    "mtime": 1784722154.4325926,
+    "ast_hash": "3ff2d9ab264904b3b6d0ee6ab848793f",
     "semantic_hash": ""
   }
 }

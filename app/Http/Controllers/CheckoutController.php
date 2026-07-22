@@ -18,7 +18,7 @@ use App\Models\User;
 use App\Support\ConsignmentTransitionService;
 use App\Support\MoneyCalculationService;
 use App\Support\OrderItemCancellation;
-use App\Support\PreOrderRules;
+use App\Support\PurchasableProductService;
 use App\Support\TransactionCode;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -48,7 +48,10 @@ class CheckoutController extends Controller
                 ->latest()
                 ->get()
                 ->map(function (CartItem $cartItem) {
-                    $invalidReasons = PreOrderRules::invalidReasons($cartItem->product, $cartItem->quantity);
+                    $invalidReasons = PurchasableProductService::invalidReasonCodes(
+                        $cartItem->product,
+                        $cartItem->quantity,
+                    );
 
                     return [
                         'id' => $cartItem->id,
@@ -197,11 +200,15 @@ class CheckoutController extends Controller
 
         $quantity = max(1, (int) $request->integer('quantity', 1));
 
+        $invalidReasons = PurchasableProductService::invalidReasonCodes($product, $quantity);
+
         return [
             'id' => $product->id,
             'source' => 'buy_now',
             'quantity' => $quantity,
             'subtotal' => $quantity * $product->price,
+            'is_valid' => $invalidReasons === [],
+            'invalid_reasons' => $invalidReasons,
             'product' => $this->productPayload($product),
         ];
     }
@@ -250,19 +257,7 @@ class CheckoutController extends Controller
 
     private function createOrderItem(Order $order, Product $product, int $quantity, User $actor): int
     {
-        if ($product->status !== ProductStatus::Approved) {
-            throw ValidationException::withMessages([
-                'cart' => "Produk {$product->name} tidak tersedia untuk checkout.",
-            ]);
-        }
-
-        if (! $product->isPreOrder() && $quantity > $product->availableStock()) {
-            throw ValidationException::withMessages([
-                'cart' => "Quantity {$product->name} melebihi stok tersedia.",
-            ]);
-        }
-
-        PreOrderRules::assertPurchasableForCheckout($product, $quantity);
+        PurchasableProductService::assertPurchasableForCheckout($product, $quantity);
 
         $subtotal = $quantity * $product->price;
 

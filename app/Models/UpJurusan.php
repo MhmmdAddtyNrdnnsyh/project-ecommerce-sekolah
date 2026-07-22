@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\UpJurusanStatus;
 use Database\Factories\UpJurusanFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Collection;
@@ -15,15 +16,26 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int $admin_jurusan_id
  * @property string $name
  * @property string|null $description
+ * @property UpJurusanStatus $status
  * @property User $adminJurusan
  * @property Collection<int, User> $picketOfficers
  * @property Collection<int, Product> $products
  */
-#[Fillable(['admin_jurusan_id', 'name', 'description'])]
+#[Fillable(['admin_jurusan_id', 'name', 'description', 'status'])]
 class UpJurusan extends Model
 {
     /** @use HasFactory<UpJurusanFactory> */
     use HasFactory;
+
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'status' => UpJurusanStatus::class,
+        ];
+    }
 
     /**
      * @return BelongsTo<User, $this>

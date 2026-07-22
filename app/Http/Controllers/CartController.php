@@ -6,10 +6,9 @@ use App\Enums\ProductStatus;
 use App\Models\CartItem;
 use App\Models\Product;
 use App\Models\User;
-use App\Support\PreOrderRules;
+use App\Support\PurchasableProductService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -26,33 +25,34 @@ class CartController extends Controller
             ->latest()
             ->get()
             ->map(function (CartItem $cartItem) {
-                $invalidReasons = PreOrderRules::invalidReasons($cartItem->product, $cartItem->quantity);
+                $product = $cartItem->product;
+                $invalidReasons = PurchasableProductService::invalidReasonCodes($product, $cartItem->quantity);
 
                 return [
                     'id' => $cartItem->id,
                     'quantity' => $cartItem->quantity,
-                    'subtotal' => $cartItem->quantity * $cartItem->product->price,
+                    'subtotal' => $product ? $cartItem->quantity * $product->price : 0,
                     'is_valid' => $invalidReasons === [],
                     'invalid_reasons' => $invalidReasons,
-                    'product' => [
-                        'id' => $cartItem->product->id,
-                        'name' => $cartItem->product->name,
-                        'slug' => $cartItem->product->slug,
-                        'price' => $cartItem->product->price,
-                        'stock' => $cartItem->product->availableStock(),
-                        'is_pre_order' => $cartItem->product->isPreOrder(),
-                        'pre_order_estimate_days' => $cartItem->product->pre_order_estimate_days,
-                        'pre_order_deadline' => $cartItem->product->pre_order_deadline?->toDateString(),
-                        'pre_order_min_quantity' => $cartItem->product->pre_order_min_quantity,
-                        'pre_order_note' => $cartItem->product->pre_order_note,
-                        'image' => $cartItem->product->image,
-                        'seller' => $this->ownerPayload($cartItem->product),
+                    'product' => $product ? [
+                        'id' => $product->id,
+                        'name' => $product->name,
+                        'slug' => $product->slug,
+                        'price' => $product->price,
+                        'stock' => $product->availableStock(),
+                        'is_pre_order' => $product->isPreOrder(),
+                        'pre_order_estimate_days' => $product->pre_order_estimate_days,
+                        'pre_order_deadline' => $product->pre_order_deadline?->toDateString(),
+                        'pre_order_min_quantity' => $product->pre_order_min_quantity,
+                        'pre_order_note' => $product->pre_order_note,
+                        'image' => $product->image,
+                        'seller' => $this->ownerPayload($product),
                         'category' => [
-                            'id' => $cartItem->product->category->id,
-                            'name' => $cartItem->product->category->name,
-                            'slug' => $cartItem->product->category->slug,
+                            'id' => $product->category->id,
+                            'name' => $product->category->name,
+                            'slug' => $product->category->slug,
                         ],
-                    ],
+                    ] : null,
                 ];
             })
             ->values();
@@ -80,8 +80,7 @@ class CartController extends Controller
             ->first();
         $nextQuantity = $quantity + ($cartItem->quantity ?? 0);
 
-        $this->ensureQuantityDoesNotExceedStock($nextQuantity, $product);
-        PreOrderRules::assertPurchasable($product, $nextQuantity);
+        PurchasableProductService::assertPurchasable($product, $nextQuantity);
 
         if ($cartItem) {
             $cartItem->update(['quantity' => $nextQuantity]);
@@ -110,8 +109,7 @@ class CartController extends Controller
         $cartItem->load('product');
         $quantity = $this->validatedQuantity($request);
 
-        $this->ensureQuantityDoesNotExceedStock($quantity, $cartItem->product);
-        PreOrderRules::assertPurchasable($cartItem->product, $quantity);
+        PurchasableProductService::assertPurchasable($cartItem->product, $quantity);
 
         $cartItem->update(['quantity' => $quantity]);
 
@@ -137,23 +135,6 @@ class CartController extends Controller
         ]);
 
         return (int) $validated['quantity'];
-    }
-
-    private function ensureQuantityDoesNotExceedStock(int $quantity, Product $product): void
-    {
-        if ($product->isPreOrder()) {
-            return;
-        }
-
-        $stock = $product->availableStock();
-
-        if ($quantity <= $stock) {
-            return;
-        }
-
-        throw ValidationException::withMessages([
-            'quantity' => 'Quantity tidak boleh melebihi stok tersedia.',
-        ]);
     }
 
     /**

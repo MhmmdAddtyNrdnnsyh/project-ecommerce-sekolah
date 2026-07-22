@@ -13,6 +13,8 @@ class DomainEventService
 
     public const AGGREGATE_CONSIGNMENT = 'consignment';
 
+    public const AGGREGATE_UP_JURUSAN = 'up_jurusan';
+
     /**
      * Persist a domain event. Must be called inside an open DB transaction
      * so rollback discards the audit row.

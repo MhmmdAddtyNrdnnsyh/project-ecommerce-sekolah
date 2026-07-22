@@ -11,7 +11,7 @@ use App\Models\Product;
 use App\Models\UpJurusan;
 use App\Models\UpJurusanConsignment;
 use App\Models\User;
-use App\Support\ActorLifecycle;
+use App\Support\OrganizationLifecycleService;
 use App\Support\ReportAggregationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -161,25 +161,7 @@ class AdminJurusanUpJurusanController extends Controller
             ->where('role', UserRole::PicketOfficer)
             ->firstOrFail();
 
-        if ($picket->up_jurusan_id !== null && $picket->up_jurusan_id !== $upJurusan->id) {
-            throw ValidationException::withMessages([
-                'picket_id' => 'Picket officer sudah ditugaskan ke UP Jurusan lain.',
-            ])->redirectTo(route('admin-jurusan.up-jurusan.index'));
-        }
-
-        $currentPicket = User::query()
-            ->where('role', UserRole::PicketOfficer)
-            ->where('up_jurusan_id', $upJurusan->id)
-            ->whereKeyNot($picket->id)
-            ->first();
-
-        if ($currentPicket !== null) {
-            ActorLifecycle::assertCanReassignPicket($upJurusan);
-            $this->authorize('reassignPicket', $upJurusan);
-            $currentPicket->update(['up_jurusan_id' => null]);
-        }
-
-        $picket->update(['up_jurusan_id' => $upJurusan->id]);
+        OrganizationLifecycleService::assignPicket($upJurusan, $picket, $adminJurusan);
 
         return to_route('admin-jurusan.up-jurusan.index')
             ->with('success', 'Picket officer berhasil ditugaskan.');
@@ -192,21 +174,7 @@ class AdminJurusanUpJurusanController extends Controller
 
         abort_unless($upJurusan->admin_jurusan_id === $adminJurusan->id, 403);
 
-        ActorLifecycle::assertCanReassignPicket($upJurusan);
-        $this->authorize('reassignPicket', $upJurusan);
-
-        $picket = User::query()
-            ->where('role', UserRole::PicketOfficer)
-            ->where('up_jurusan_id', $upJurusan->id)
-            ->first();
-
-        if ($picket === null) {
-            throw ValidationException::withMessages([
-                'picket_id' => 'UP Jurusan ini belum memiliki picket officer.',
-            ])->redirectTo(route('admin-jurusan.up-jurusan.index'));
-        }
-
-        $picket->update(['up_jurusan_id' => null]);
+        OrganizationLifecycleService::unassignPicket($upJurusan, $adminJurusan);
 
         return to_route('admin-jurusan.up-jurusan.index')
             ->with('success', 'Picket officer berhasil dilepas.');
@@ -219,10 +187,7 @@ class AdminJurusanUpJurusanController extends Controller
 
         abort_unless($upJurusan->admin_jurusan_id === $adminJurusan->id, 403);
 
-        ActorLifecycle::assertCanDeleteUpJurusan($upJurusan);
-        $this->authorize('delete', $upJurusan);
-
-        $upJurusan->delete();
+        OrganizationLifecycleService::deleteUpJurusan($upJurusan, $adminJurusan);
 
         return to_route('admin-jurusan.up-jurusan.index')
             ->with('success', 'UP Jurusan berhasil dihapus.');
@@ -247,13 +212,15 @@ class AdminJurusanUpJurusanController extends Controller
             'password' => ['required', 'confirmed', Password::defaults()],
         ]);
 
-        User::query()->create([
+        $picket = User::query()->create([
             'name' => $validated['name'],
             'email' => $validated['email'],
             'role' => UserRole::PicketOfficer,
             'password' => $validated['password'],
-            'up_jurusan_id' => $upJurusan->id,
+            'up_jurusan_id' => null,
         ]);
+
+        OrganizationLifecycleService::assignPicket($upJurusan, $picket, $adminJurusan);
 
         return to_route('admin-jurusan.picket-officer.create')
             ->with('success', 'Akun picket officer berhasil dibuat.');

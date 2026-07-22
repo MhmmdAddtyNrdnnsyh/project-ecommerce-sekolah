@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\UpJurusanStatus;
 use App\Enums\UserRole;
 use App\Models\UpJurusan;
 use App\Models\User;
@@ -20,6 +21,7 @@ class UpJurusanFactory extends Factory
             'admin_jurusan_id' => User::factory()->create(['role' => UserRole::AdminJurusan])->id,
             'name' => 'UP '.$this->faker->unique()->word(),
             'description' => $this->faker->sentence(),
+            'status' => UpJurusanStatus::Active,
         ];
     }
 }

@@ -174,5 +174,10 @@
   "172": "@radix-ui/react-navigation-menu",
   "173": "2026_07_01_000004_add_pre_order_fields_to_products.php",
   "174": "2026_07_22_000003_add_source_to_stock_movements.php",
-  "175": "@types/react-dom"
+  "175": "@types/react-dom",
+  "176": "UpdateOrderItemStatusRequest",
+  "177": "TwoFactorAuthenticationRequest",
+  "178": "2026_07_21_000001_expand_order_lifecycle_statuses.php",
+  "180": "2026_07_22_000004_create_domain_events_table.php",
+  "182": "class-variance-authority"
 }
