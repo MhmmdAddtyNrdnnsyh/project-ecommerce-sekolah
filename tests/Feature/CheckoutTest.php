@@ -5,6 +5,7 @@ use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
 use App\Enums\ProductSalesMethod;
 use App\Enums\ProductStatus;
+use App\Enums\UpJurusanConsignmentStatus;
 use App\Enums\UserRole;
 use App\Models\CartItem;
 use App\Models\Product;
@@ -383,6 +384,7 @@ test('checkout uses up jurusan consignment stock without changing seller product
         'received_quantity' => 8,
         'sold_quantity' => 3,
         'commission_rate' => 10,
+        'status' => UpJurusanConsignmentStatus::Received,
     ]);
     CartItem::query()->create([
         'user_id' => $buyer->id,
@@ -407,7 +409,9 @@ test('checkout uses up jurusan consignment stock without changing seller product
         'up_jurusan_consignment_id' => $consignment->id,
         'user_id' => $buyer->id,
         'type' => 'out',
+        'source' => 'online_order',
         'quantity' => 2,
+        'unit_price' => 3000,
         'gross_amount' => 6000,
         'commission_amount' => 600,
         'seller_amount' => 5400,
@@ -447,6 +451,7 @@ test('checkout records up jurusan owned product sales in stock movements', funct
         'product_id' => $product->id,
         'user_id' => $buyer->id,
         'type' => 'out',
+        'source' => 'online_order',
         'quantity' => 2,
         'gross_amount' => 100000,
         'commission_amount' => 100000,

@@ -10,9 +10,9 @@ use App\Models\Category;
 use App\Models\Product;
 use App\Models\UpJurusan;
 use App\Models\UpJurusanConsignment;
-use App\Models\UpJurusanStockMovement;
 use App\Models\User;
 use App\Support\ActorLifecycle;
+use App\Support\ReportAggregationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -321,33 +321,7 @@ class AdminJurusanUpJurusanController extends Controller
      */
     private function revenueChart(UpJurusan $upJurusan): array
     {
-        $start = now()->subDays(6)->startOfDay();
-        $productRevenue = UpJurusanStockMovement::query()
-            ->where('type', 'out')
-            ->whereHas('product', fn ($query) => $query->where('up_jurusan_id', $upJurusan->id))
-            ->where('created_at', '>=', $start)
-            ->get(['created_at', 'gross_amount'])
-            ->groupBy(fn (UpJurusanStockMovement $movement) => $movement->created_at?->toDateString() ?? '');
-        $consignmentCommission = UpJurusanStockMovement::query()
-            ->where('type', 'out')
-            ->whereHas('consignment', fn ($query) => $query->where('up_jurusan_id', $upJurusan->id))
-            ->where('created_at', '>=', $start)
-            ->get(['created_at', 'commission_amount'])
-            ->groupBy(fn (UpJurusanStockMovement $movement) => $movement->created_at?->toDateString() ?? '');
-
-        return collect(range(6, 0))
-            ->map(function (int $daysAgo) use ($productRevenue, $consignmentCommission) {
-                $date = now()->subDays($daysAgo);
-                $key = $date->toDateString();
-
-                return [
-                    'day' => $date->translatedFormat('D'),
-                    'revenue' => (int) $productRevenue->get($key, collect())->sum('gross_amount')
-                        + (int) $consignmentCommission->get($key, collect())->sum('commission_amount'),
-                ];
-            })
-            ->values()
-            ->all();
+        return ReportAggregationService::upRevenueChart((int) $upJurusan->id, 7);
     }
 
     /**

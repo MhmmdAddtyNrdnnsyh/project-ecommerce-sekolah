@@ -29,7 +29,7 @@ type Props = {
         requested_quantity: number;
         received_quantity: number;
         sold_quantity: number;
-        commission_rate: number;
+        commission_rate: number | null;
         seller_earnings: number;
         paid_amount: number;
         unpaid_amount: number;
@@ -118,7 +118,11 @@ export default function AdminJurusanConsignmentShow({ consignment }: Props) {
                             />
                             <Info
                                 label="Komisi UP"
-                                value={`${consignment.commission_rate}%`}
+                                value={
+                                    consignment.commission_rate === null
+                                        ? 'Belum ditetapkan'
+                                        : `${consignment.commission_rate}%`
+                                }
                             />
                             <Info
                                 label="Saldo Seller"
@@ -137,11 +141,30 @@ export default function AdminJurusanConsignmentShow({ consignment }: Props) {
                         </div>
 
                         {consignment.status.code === 'pending_approval' && (
-                            <div className="mt-5 flex gap-2 border-t border-slate-100 pt-4">
+                            <div className="mt-5 flex flex-col gap-3 border-t border-slate-100 pt-4">
                                 <Form
                                     action={`/admin-jurusan/consignments/${consignment.id}/approve`}
                                     method="post"
+                                    className="flex flex-wrap items-end gap-2"
                                 >
+                                    <div className="grid gap-1">
+                                        <label
+                                            htmlFor="commission_rate"
+                                            className="text-xs font-medium text-slate-600"
+                                        >
+                                            Komisi UP (%)
+                                        </label>
+                                        <Input
+                                            id="commission_rate"
+                                            name="commission_rate"
+                                            type="number"
+                                            min={0}
+                                            max={100}
+                                            defaultValue={10}
+                                            required
+                                            className="w-28"
+                                        />
+                                    </div>
                                     <Button type="submit">Approve</Button>
                                 </Form>
                                 <RejectConsignmentDialog

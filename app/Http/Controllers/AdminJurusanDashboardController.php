@@ -6,8 +6,8 @@ use App\Enums\UpJurusanConsignmentStatus;
 use App\Models\UpJurusan;
 use App\Models\UpJurusanConsignment;
 use App\Models\UpJurusanDailyReport;
-use App\Models\UpJurusanPosSale;
 use App\Models\User;
+use App\Support\ReportAggregationService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -49,10 +49,9 @@ class AdminJurusanDashboardController extends Controller
 
         return Inertia::render('admin-jurusan/dashboard', [
             'dashboard' => [
-                'today_sales' => $upJurusan === null ? 0 : (int) UpJurusanPosSale::query()
-                    ->where('up_jurusan_id', $upJurusan->id)
-                    ->whereDate('created_at', now()->toDateString())
-                    ->sum('total_amount'),
+                'today_sales' => $upJurusan === null
+                    ? 0
+                    : ReportAggregationService::upTodaySales((int) $upJurusan->id),
                 'pending_requests' => $pendingRequests,
                 'awaiting_receive' => $awaitingReceive,
                 'report_status' => $this->reportStatus($upJurusan),

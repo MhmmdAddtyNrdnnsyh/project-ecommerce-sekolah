@@ -132,6 +132,7 @@ test('cancelling consignment order item restocks sold quantity and records rever
         'order_id' => $order->id,
         'user_id' => $buyer->id,
         'type' => 'out',
+        'source' => 'online_order',
         'quantity' => 3,
         'unit_price' => 1000,
         'gross_amount' => 3000,

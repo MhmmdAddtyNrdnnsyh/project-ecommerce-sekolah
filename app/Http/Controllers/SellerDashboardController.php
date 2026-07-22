@@ -10,6 +10,7 @@ use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\UpJurusanStockMovement;
 use App\Models\User;
+use App\Support\ReportAggregationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -50,11 +51,11 @@ class SellerDashboardController extends Controller
             ->where('payment_status', PaymentStatus::Paid)
             ->whereBetween('created_at', [$start, $end])
             ->sum('subtotal');
-        $offlineRevenue = fn ($start, $end): int => (int) UpJurusanStockMovement::query()
-            ->where('type', 'out')
-            ->whereHas('consignment', fn ($q) => $q->where('seller_id', $seller->id))
-            ->whereBetween('created_at', [$start, $end])
-            ->sum('seller_amount');
+        $offlineRevenue = fn ($start, $end): int => ReportAggregationService::sellerOfflineRevenue(
+            (int) $seller->id,
+            $start,
+            $end,
+        );
 
         $currentMonthRevenue = $revenue($currentMonthStart, $currentMonthEnd) + $offlineRevenue($currentMonthStart, $currentMonthEnd);
         $paidTransactions = OrderItem::query()
@@ -63,12 +64,11 @@ class SellerDashboardController extends Controller
             ->whereBetween('created_at', [$currentMonthStart, $currentMonthEnd])
             ->distinct()
             ->count('order_id');
-        $paidTransactions += UpJurusanStockMovement::query()
-            ->where('type', 'out')
-            ->whereHas('consignment', fn ($q) => $q->where('seller_id', $seller->id))
-            ->whereBetween('created_at', [$currentMonthStart, $currentMonthEnd])
-            ->distinct()
-            ->count('up_jurusan_pos_sale_id');
+        $paidTransactions += ReportAggregationService::sellerOfflineSaleCount(
+            (int) $seller->id,
+            $currentMonthStart,
+            $currentMonthEnd,
+        );
 
         $stockQuery = Product::query()
             ->where('seller_id', $seller->id)
@@ -133,26 +133,20 @@ class SellerDashboardController extends Controller
             ->groupByRaw('DATE(order_items.created_at)')
             ->get()
             ->keyBy('sale_date');
-        /** @var Collection<string, object{total_sales: int}> $offlineTotals */
-        $offlineTotals = DB::table('up_jurusan_stock_movements')
-            ->join('up_jurusan_consignments', 'up_jurusan_stock_movements.up_jurusan_consignment_id', '=', 'up_jurusan_consignments.id')
-            ->where('up_jurusan_consignments.seller_id', $seller->id)
-            ->where('up_jurusan_stock_movements.type', 'out')
-            ->whereBetween('up_jurusan_stock_movements.created_at', [$start, $end])
-            ->selectRaw('DATE(up_jurusan_stock_movements.created_at) as sale_date, COALESCE(SUM(up_jurusan_stock_movements.seller_amount), 0) as total_sales')
-            ->groupByRaw('DATE(up_jurusan_stock_movements.created_at)')
-            ->get()
-            ->keyBy('sale_date');
+        $offlineTotals = ReportAggregationService::sellerOfflineRevenueByDate(
+            (int) $seller->id,
+            $start,
+            $end,
+        );
 
         return collect(range(6, 0))
             ->map(function (int $daysAgo) use ($totals, $offlineTotals) {
                 $date = now()->subDays($daysAgo);
                 $dayStats = $totals->get($date->toDateString());
-                $offlineDayStats = $offlineTotals->get($date->toDateString());
 
                 return [
                     'day' => $date->translatedFormat('d M'),
-                    'sales' => (int) ($dayStats->total_sales ?? 0) + (int) ($offlineDayStats->total_sales ?? 0),
+                    'sales' => (int) ($dayStats->total_sales ?? 0) + (int) ($offlineTotals->get($date->toDateString()) ?? 0),
                 ];
             })
             ->values()

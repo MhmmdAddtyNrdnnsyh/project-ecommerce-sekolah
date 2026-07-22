@@ -3,9 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\UpJurusanConsignment;
-use App\Models\UpJurusanPayout;
-use App\Models\UpJurusanStockMovement;
 use App\Models\User;
+use App\Support\MoneyCalculationService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -24,13 +23,8 @@ class SellerConsignmentController extends Controller
                 ->latest()
                 ->get()
                 ->map(function (UpJurusanConsignment $consignment) {
-                    $sellerEarnings = (int) UpJurusanStockMovement::query()
-                        ->where('up_jurusan_consignment_id', $consignment->id)
-                        ->where('type', 'out')
-                        ->sum('seller_amount');
-                    $paidAmount = (int) UpJurusanPayout::query()
-                        ->where('up_jurusan_consignment_id', $consignment->id)
-                        ->sum('amount');
+                    $sellerEarnings = MoneyCalculationService::sellerEarningsFromOutMovements($consignment->id);
+                    $paidAmount = MoneyCalculationService::paidPayoutAmount($consignment->id);
 
                     return [
                         'id' => $consignment->id,
@@ -42,7 +36,7 @@ class SellerConsignmentController extends Controller
                         'commission_rate' => $consignment->commission_rate,
                         'seller_earnings' => $sellerEarnings,
                         'paid_amount' => $paidAmount,
-                        'unpaid_amount' => max(0, $sellerEarnings - $paidAmount),
+                        'unpaid_amount' => MoneyCalculationService::unpaidSellerAmount($consignment->id),
                         'status' => [
                             'code' => $consignment->status->value,
                             'label' => $consignment->status->label(),

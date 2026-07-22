@@ -17,7 +17,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $requested_quantity
  * @property int $received_quantity
  * @property int $sold_quantity
- * @property int $commission_rate
+ * @property int|null $commission_rate
  * @property UpJurusanConsignmentStatus $status
  * @property string|null $note
  * @property User $seller

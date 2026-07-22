@@ -14,6 +14,7 @@ use App\Models\UpJurusan;
 use App\Models\UpJurusanConsignment;
 use App\Models\UpJurusanDailyReport;
 use App\Models\UpJurusanPosSale;
+use App\Models\UpJurusanStockMovement;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -285,12 +286,24 @@ test('admin jurusan can view scoped dashboard summary', function () {
         'sold_quantity' => 0,
         'status' => UpJurusanConsignmentStatus::PendingApproval,
     ]);
-    UpJurusanPosSale::query()->create([
+    $dashboardProduct = Product::factory()->create([
+        'seller_id' => null,
         'up_jurusan_id' => $ownUp->id,
+        'status' => ProductStatus::Approved,
+        'stock' => 10,
+        'price' => 15000,
+    ]);
+    UpJurusanStockMovement::query()->create([
+        'up_jurusan_consignment_id' => null,
+        'product_id' => $dashboardProduct->id,
         'user_id' => User::factory()->create()->id,
-        'code' => 'TRX-20260625100000-UP',
-        'total_quantity' => 3,
-        'total_amount' => 45_000,
+        'type' => 'out',
+        'source' => 'pos_sale',
+        'quantity' => 3,
+        'unit_price' => 15000,
+        'gross_amount' => 45_000,
+        'commission_amount' => 45_000,
+        'seller_amount' => 0,
     ]);
 
     $this->actingAs($adminJurusan)
@@ -421,12 +434,15 @@ test('admin jurusan can approve own up jurusan consignment request', function ()
     ]);
 
     $this->actingAs($adminJurusan)
-        ->post(route('admin-jurusan.consignments.approve', $consignment))
+        ->post(route('admin-jurusan.consignments.approve', $consignment), [
+            'commission_rate' => 10,
+        ])
         ->assertRedirect(route('admin-jurusan.consignments.index'));
 
     $this->assertDatabaseHas('up_jurusan_consignments', [
         'id' => $consignment->id,
         'status' => 'approved',
+        'commission_rate' => 10,
     ]);
     $this->assertDatabaseHas('products', [
         'id' => $product->id,
@@ -561,6 +577,7 @@ test('picket receives physical stock and records sales with commission split', f
         'up_jurusan_consignment_id' => $consignment->id,
         'user_id' => $picket->id,
         'type' => 'out',
+        'source' => 'pos_sale',
         'quantity' => 3,
         'unit_price' => 3000,
         'gross_amount' => 9000,
@@ -614,6 +631,7 @@ test('admin jurusan records seller payout from consignment earnings', function (
         'up_jurusan_consignment_id' => $consignment->id,
         'user_id' => $adminJurusan->id,
         'type' => 'out',
+        'source' => 'pos_sale',
         'quantity' => 3,
         'unit_price' => 3000,
         'gross_amount' => 9000,
@@ -768,6 +786,7 @@ test('picket officer sees pos products and daily sales summary for assigned up j
             'up_jurusan_pos_sale_id' => $posSaleId,
             'user_id' => $picket->id,
             'type' => 'out',
+            'source' => 'pos_sale',
             'quantity' => 2,
             'unit_price' => 3000,
             'gross_amount' => 6000,
@@ -781,6 +800,7 @@ test('picket officer sees pos products and daily sales summary for assigned up j
             'up_jurusan_pos_sale_id' => null,
             'user_id' => $picket->id,
             'type' => 'in',
+            'source' => null,
             'quantity' => 5,
             'unit_price' => 0,
             'gross_amount' => 0,
@@ -794,6 +814,7 @@ test('picket officer sees pos products and daily sales summary for assigned up j
             'up_jurusan_pos_sale_id' => null,
             'user_id' => $picket->id,
             'type' => 'out',
+            'source' => 'pos_sale',
             'quantity' => 9,
             'unit_price' => 3000,
             'gross_amount' => 27000,
@@ -888,6 +909,7 @@ test('picket officer can record cart sale for assigned up jurusan', function () 
         'up_jurusan_consignment_id' => $consignmentA->id,
         'user_id' => $picket->id,
         'type' => 'out',
+        'source' => 'pos_sale',
         'quantity' => 2,
         'gross_amount' => 10000,
         'commission_amount' => 1000,
@@ -897,6 +919,7 @@ test('picket officer can record cart sale for assigned up jurusan', function () 
         'up_jurusan_consignment_id' => $consignmentB->id,
         'user_id' => $picket->id,
         'type' => 'out',
+        'source' => 'pos_sale',
         'quantity' => 1,
         'gross_amount' => 7000,
         'commission_amount' => 1400,
@@ -967,6 +990,7 @@ test('picket officer can sell up jurusan owned products through pos', function (
         'product_id' => $product->id,
         'user_id' => $picket->id,
         'type' => 'out',
+        'source' => 'pos_sale',
         'quantity' => 2,
         'gross_amount' => 100000,
         'commission_amount' => 100000,
@@ -1189,6 +1213,7 @@ test('picket officer can submit daily sales report', function () {
         'up_jurusan_pos_sale_id' => $posSaleId,
         'user_id' => $picket->id,
         'type' => 'out',
+        'source' => 'pos_sale',
         'quantity' => 2,
         'unit_price' => 3000,
         'gross_amount' => 6000,
@@ -1299,6 +1324,7 @@ test('admin jurusan can view scoped daily transaction report', function () {
             'order_id' => null,
             'user_id' => $picket->id,
             'type' => 'in',
+            'source' => null,
             'quantity' => 10,
             'unit_price' => 0,
             'gross_amount' => 0,
@@ -1314,6 +1340,7 @@ test('admin jurusan can view scoped daily transaction report', function () {
             'order_id' => null,
             'user_id' => $picket->id,
             'type' => 'out',
+            'source' => 'pos_sale',
             'quantity' => 4,
             'unit_price' => 20000,
             'gross_amount' => 80000,
@@ -1329,6 +1356,7 @@ test('admin jurusan can view scoped daily transaction report', function () {
             'order_id' => $websiteOrder->id,
             'user_id' => $buyer->id,
             'type' => 'out',
+            'source' => 'online_order',
             'quantity' => 2,
             'unit_price' => 50000,
             'gross_amount' => 100000,
@@ -1344,6 +1372,7 @@ test('admin jurusan can view scoped daily transaction report', function () {
             'order_id' => null,
             'user_id' => $picket->id,
             'type' => 'out',
+            'source' => 'pos_sale',
             'quantity' => 99,
             'unit_price' => 0,
             'gross_amount' => 0,

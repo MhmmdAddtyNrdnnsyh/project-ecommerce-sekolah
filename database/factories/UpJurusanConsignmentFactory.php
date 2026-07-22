@@ -28,7 +28,7 @@ class UpJurusanConsignmentFactory extends Factory
             'requested_quantity' => 10,
             'received_quantity' => 0,
             'sold_quantity' => 0,
-            'commission_rate' => 0,
+            'commission_rate' => null,
             'status' => UpJurusanConsignmentStatus::PendingApproval,
             'note' => null,
         ];

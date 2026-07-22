@@ -6,6 +6,7 @@ use App\Models\UpJurusan;
 use App\Models\UpJurusanDailyReport;
 use App\Models\UpJurusanDailyReportTransaction;
 use App\Models\User;
+use App\Support\ReportAggregationService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -36,12 +37,7 @@ class AdminJurusanReportController extends Controller
 
         return Inertia::render('admin-jurusan/reports/index', [
             'filters' => ['date' => $date],
-            'summary' => [
-                'reports' => $dailyReports->count(),
-                'pickets' => $dailyReports->pluck('user_id')->unique()->count(),
-                'items_sold' => $dailyReports->sum('total_sold'),
-                'gross_amount' => $dailyReports->sum('total_revenue'),
-            ],
+            'summary' => ReportAggregationService::adminDailyReportsSummary($dailyReports),
             'reports' => $dailyReports
                 ->map(fn (UpJurusanDailyReport $report) => [
                     'id' => $report->id,

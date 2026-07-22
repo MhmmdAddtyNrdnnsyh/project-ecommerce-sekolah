@@ -25,7 +25,7 @@ return new class extends Migration
             $table->unsignedInteger('requested_quantity');
             $table->unsignedInteger('received_quantity')->default(0);
             $table->unsignedInteger('sold_quantity')->default(0);
-            $table->unsignedTinyInteger('commission_rate')->default(0);
+            $table->unsignedTinyInteger('commission_rate')->nullable();
             $table->enum('status', UpJurusanConsignmentStatus::values())->default(UpJurusanConsignmentStatus::PendingApproval->value)->index();
             $table->text('note')->nullable();
             $table->timestamps();

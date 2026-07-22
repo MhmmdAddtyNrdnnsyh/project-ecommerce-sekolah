@@ -10,8 +10,6 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\UpJurusan;
 use App\Models\UpJurusanConsignment;
-use App\Models\UpJurusanPayout;
-use App\Models\UpJurusanStockMovement;
 use App\Models\User;
 use Illuminate\Validation\ValidationException;
 
@@ -100,16 +98,7 @@ class ActorLifecycle
 
     public static function consignmentUnpaidAmount(int $consignmentId): int
     {
-        $sellerEarnings = (int) UpJurusanStockMovement::query()
-            ->where('up_jurusan_consignment_id', $consignmentId)
-            ->where('type', 'out')
-            ->sum('seller_amount');
-
-        $paidAmount = (int) UpJurusanPayout::query()
-            ->where('up_jurusan_consignment_id', $consignmentId)
-            ->sum('amount');
-
-        return max(0, $sellerEarnings - $paidAmount);
+        return MoneyCalculationService::unpaidSellerAmount($consignmentId);
     }
 
     public static function upJurusanHasActiveOrderItems(UpJurusan $upJurusan): bool

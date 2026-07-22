@@ -30,4 +30,12 @@ enum UpJurusanConsignmentStatus: string
     {
         return array_column(self::cases(), 'value');
     }
+
+    public function isTerminal(): bool
+    {
+        return match ($this) {
+            self::Completed, self::Cancelled, self::Rejected => true,
+            default => false,
+        };
+    }
 }

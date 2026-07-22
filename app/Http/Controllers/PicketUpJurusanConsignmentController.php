@@ -3,24 +3,23 @@
 namespace App\Http\Controllers;
 
 use App\Enums\OrderItemStatus;
-use App\Enums\PaymentMethod;
-use App\Enums\PaymentStatus;
 use App\Enums\ProductStatus;
-use App\Enums\UpJurusanConsignmentStatus;
+use App\Enums\StockMovementSource;
 use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\UpJurusanConsignment;
 use App\Models\UpJurusanDailyReport;
-use App\Models\UpJurusanDailyReportTransaction;
 use App\Models\UpJurusanPosSale;
 use App\Models\UpJurusanStockMovement;
 use App\Models\User;
+use App\Support\ConsignmentTransitionService;
+use App\Support\MoneyCalculationService;
 use App\Support\OrderItemCancellation;
 use App\Support\OrderItemFulfillment;
-use App\Support\OrderPaymentSync;
 use App\Support\OrderStatusSync;
+use App\Support\PaymentTransitionService;
+use App\Support\ReportAggregationService;
 use App\Support\TransactionCode;
-use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -145,30 +144,15 @@ class PicketUpJurusanConsignmentController extends Controller
             ->where('user_id', $picket->id)
             ->whereDate('report_date', $today)
             ->first();
-        $dailySales = $dailyReport === null
-            ? UpJurusanPosSale::query()
-                ->with([
-                    'movements.consignment.product:id,name,price',
-                    'movements.product:id,name,price,up_jurusan_id',
-                ])
-                ->where('up_jurusan_id', $picket->up_jurusan_id)
-                ->where('user_id', $picket->id)
-                ->whereDate('created_at', $today)
-                ->latest()
-                ->get()
-            : new Collection;
         $dailyReportSummary = $dailyReport === null
-            ? [
-                'total_sold' => $dailySales->sum('total_quantity'),
-                'total_revenue' => $dailySales->sum('total_amount'),
-                'submitted_at' => null,
-                'items' => $this->dailyReportTransactions($dailySales),
-            ]
+            ? ReportAggregationService::picketDailyOpenSummary(
+                (int) $picket->up_jurusan_id,
+                (int) $picket->id,
+                $today,
+            )
             : [
-                'total_sold' => $dailyReport->total_sold,
-                'total_revenue' => $dailyReport->total_revenue,
+                ...ReportAggregationService::dailyReportSnapshotPayload($dailyReport),
                 'submitted_at' => $dailyReport->submitted_at,
-                'items' => $this->dailyReportTransactionSnapshots($dailyReport->transactions),
             ];
         $orderItems = OrderItem::query()
             ->with([
@@ -285,33 +269,13 @@ class PicketUpJurusanConsignmentController extends Controller
         $validated = $request->validate([
             'quantity' => ['required', 'integer', 'min:1'],
         ]);
-        $quantity = (int) $validated['quantity'];
-        $nextQuantity = $consignment->received_quantity + $quantity;
 
-        if ($consignment->status !== UpJurusanConsignmentStatus::Approved && $consignment->status !== UpJurusanConsignmentStatus::Received) {
-            throw ValidationException::withMessages([
-                'quantity' => 'Barang hanya bisa diterima setelah request disetujui admin jurusan.',
-            ]);
-        }
-
-        if ($nextQuantity > $consignment->requested_quantity) {
-            throw ValidationException::withMessages([
-                'quantity' => 'Jumlah diterima tidak boleh melebihi jumlah request.',
-            ]);
-        }
-
-        DB::transaction(function () use ($consignment, $picket, $quantity, $nextQuantity) {
-            $consignment->update([
-                'received_quantity' => $nextQuantity,
-                'status' => UpJurusanConsignmentStatus::Received,
-            ]);
-
-            UpJurusanStockMovement::query()->create([
-                'up_jurusan_consignment_id' => $consignment->id,
-                'user_id' => $picket->id,
-                'type' => 'in',
-                'quantity' => $quantity,
-            ]);
+        DB::transaction(function () use ($consignment, $picket, $validated) {
+            ConsignmentTransitionService::receive(
+                $consignment,
+                (int) $validated['quantity'],
+                $picket,
+            );
         });
 
         return to_route('picket.dashboard')
@@ -420,25 +384,19 @@ class PicketUpJurusanConsignmentController extends Controller
         /** @var User $picket */
         $picket = $request->user();
         $today = now()->toDateString();
+        $payload = ReportAggregationService::picketDailySubmitPayload(
+            (int) $picket->up_jurusan_id,
+            (int) $picket->id,
+            $today,
+        );
 
-        $sales = UpJurusanPosSale::query()
-            ->with([
-                'movements.consignment.product:id,name',
-                'movements.product:id,name,up_jurusan_id',
-            ])
-            ->where('up_jurusan_id', $picket->up_jurusan_id)
-            ->where('user_id', $picket->id)
-            ->whereDate('created_at', $today)
-            ->latest()
-            ->get();
-
-        if ($sales->isEmpty()) {
+        if ($payload['total_sold'] <= 0) {
             throw ValidationException::withMessages([
                 'report' => 'Belum ada penjualan hari ini.',
             ]);
         }
 
-        DB::transaction(function () use ($picket, $sales, $today) {
+        DB::transaction(function () use ($picket, $payload, $today) {
             $existingReport = UpJurusanDailyReport::query()
                 ->where('up_jurusan_id', $picket->up_jurusan_id)
                 ->where('user_id', $picket->id)
@@ -454,12 +412,12 @@ class PicketUpJurusanConsignmentController extends Controller
                 'up_jurusan_id' => $picket->up_jurusan_id,
                 'user_id' => $picket->id,
                 'report_date' => $today,
-                'total_sold' => $sales->sum('total_quantity'),
-                'total_revenue' => $sales->sum('total_amount'),
+                'total_sold' => $payload['total_sold'],
+                'total_revenue' => $payload['total_revenue'],
                 'submitted_at' => now(),
             ]);
 
-            $this->snapshotReportTransactions($report, $sales);
+            ReportAggregationService::snapshotDailyReportTransactions($report, $payload['items']);
         });
 
         return to_route('picket.reports')
@@ -503,41 +461,10 @@ class PicketUpJurusanConsignmentController extends Controller
         /** @var User $picket */
         $picket = $request->user();
 
-        DB::transaction(function () use ($orderItem, $picket) {
-            /** @var OrderItem $current */
-            $current = OrderItem::query()
-                ->with([
-                    'order:id',
-                    'product.upJurusanConsignments:id,product_id,up_jurusan_id',
-                ])
-                ->lockForUpdate()
-                ->findOrFail($orderItem->id);
+        $orderItem->load(['product.upJurusanConsignments:id,product_id,up_jurusan_id']);
+        $this->authorizeOrderItemPicket($picket, $orderItem);
 
-            $this->authorizeOrderItemPicket($picket, $current);
-
-            if ($current->payment_status === PaymentStatus::Paid) {
-                throw ValidationException::withMessages([
-                    'payment' => 'Pembayaran item ini sudah lunas.',
-                ]);
-            }
-
-            if ($current->payment_status === PaymentStatus::Rejected) {
-                throw ValidationException::withMessages([
-                    'payment' => 'Pembayaran item ini sudah ditolak.',
-                ]);
-            }
-
-            $current->update([
-                'payment_status' => PaymentStatus::Paid,
-                'payment_method' => PaymentMethod::Cash,
-                'payment_confirmed_at' => now(),
-                'payment_confirmed_by' => $picket->id,
-                'payment_rejection_reason' => null,
-            ]);
-
-            OrderPaymentSync::sync($current->order);
-            OrderStatusSync::sync($current->order);
-        });
+        PaymentTransitionService::approve($orderItem, $picket);
 
         return back()->with('success', 'Pelunasan item berhasil dikonfirmasi.');
     }
@@ -551,46 +478,14 @@ class PicketUpJurusanConsignmentController extends Controller
             'payment_rejection_reason' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        DB::transaction(function () use ($orderItem, $picket, $validated) {
-            /** @var OrderItem $current */
-            $current = OrderItem::query()
-                ->with([
-                    'order:id',
-                    'product.upJurusanConsignments:id,product_id,up_jurusan_id',
-                ])
-                ->lockForUpdate()
-                ->findOrFail($orderItem->id);
+        $orderItem->load(['product.upJurusanConsignments:id,product_id,up_jurusan_id']);
+        $this->authorizeOrderItemPicket($picket, $orderItem);
 
-            $this->authorizeOrderItemPicket($picket, $current);
-
-            if ($current->payment_status === PaymentStatus::Paid) {
-                throw ValidationException::withMessages([
-                    'payment' => 'Pembayaran yang sudah lunas tidak dapat ditolak.',
-                ]);
-            }
-
-            if ($current->payment_status === PaymentStatus::Rejected) {
-                throw ValidationException::withMessages([
-                    'payment' => 'Pembayaran item ini sudah ditolak.',
-                ]);
-            }
-
-            if ($current->status->isTerminal()) {
-                throw ValidationException::withMessages([
-                    'payment' => 'Item yang sudah selesai atau dibatalkan tidak dapat ditolak pembayarannya.',
-                ]);
-            }
-
-            $current->update([
-                'payment_status' => PaymentStatus::Rejected,
-                'payment_confirmed_at' => null,
-                'payment_confirmed_by' => null,
-                'payment_rejection_reason' => $validated['payment_rejection_reason'] ?? null,
-            ]);
-
-            OrderPaymentSync::sync($current->order);
-            OrderStatusSync::sync($current->order);
-        });
+        PaymentTransitionService::reject(
+            $orderItem,
+            $picket,
+            $validated['payment_rejection_reason'] ?? null,
+        );
 
         return back()->with('success', 'Pembayaran item ditolak.');
     }
@@ -660,7 +555,6 @@ class PicketUpJurusanConsignmentController extends Controller
             ->whereDate('report_date', now()->toDateString())
             ->whereNotNull('submitted_at')
             ->exists();
-
         if ($reportSubmitted) {
             throw ValidationException::withMessages([
                 'report' => 'Laporan hari ini sudah dikirim. Transaksi POS baru tidak bisa dicatat setelah laporan dikirim.',
@@ -670,25 +564,13 @@ class PicketUpJurusanConsignmentController extends Controller
 
     private function recordSale(User $picket, UpJurusanConsignment $consignment, int $quantity, ?UpJurusanPosSale $sale = null): int
     {
-        $available = $consignment->received_quantity - $consignment->sold_quantity;
+        $money = MoneyCalculationService::consignmentSaleSplit(
+            (int) $consignment->product->price,
+            $quantity,
+            (int) ($consignment->commission_rate ?? 0),
+        );
 
-        if ($quantity > $available) {
-            throw ValidationException::withMessages([
-                'quantity' => 'Jumlah keluar tidak boleh melebihi stok titipan tersedia.',
-            ]);
-        }
-
-        $nextSoldQuantity = $consignment->sold_quantity + $quantity;
-        $unitPrice = $consignment->product->price;
-        $grossAmount = $unitPrice * $quantity;
-        $commissionAmount = intdiv($grossAmount * $consignment->commission_rate, 100);
-
-        $consignment->update([
-            'sold_quantity' => $nextSoldQuantity,
-            'status' => $nextSoldQuantity >= $consignment->received_quantity
-                ? UpJurusanConsignmentStatus::Completed
-                : $consignment->status,
-        ]);
+        ConsignmentTransitionService::recordSold($consignment, $quantity);
 
         UpJurusanStockMovement::query()->create([
             'up_jurusan_consignment_id' => $consignment->id,
@@ -696,14 +578,12 @@ class PicketUpJurusanConsignmentController extends Controller
             'up_jurusan_pos_sale_id' => $sale?->id,
             'user_id' => $picket->id,
             'type' => 'out',
+            'source' => StockMovementSource::PosSale,
             'quantity' => $quantity,
-            'unit_price' => $unitPrice,
-            'gross_amount' => $grossAmount,
-            'commission_amount' => $commissionAmount,
-            'seller_amount' => $grossAmount - $commissionAmount,
+            ...$money,
         ]);
 
-        return $grossAmount;
+        return $money['gross_amount'];
     }
 
     private function recordProductSale(User $picket, Product $product, int $quantity, ?UpJurusanPosSale $sale = null): int
@@ -714,7 +594,7 @@ class PicketUpJurusanConsignmentController extends Controller
             ]);
         }
 
-        $grossAmount = $product->price * $quantity;
+        $money = MoneyCalculationService::upOwnedProductSaleSplit((int) $product->price, $quantity);
 
         $product->update([
             'stock' => $product->stock - $quantity,
@@ -726,124 +606,16 @@ class PicketUpJurusanConsignmentController extends Controller
             'up_jurusan_pos_sale_id' => $sale?->id,
             'user_id' => $picket->id,
             'type' => 'out',
+            'source' => StockMovementSource::PosSale,
             'quantity' => $quantity,
-            'unit_price' => $product->price,
-            'gross_amount' => $grossAmount,
-            'commission_amount' => $grossAmount,
-            'seller_amount' => 0,
+            ...$money,
         ]);
 
-        return $grossAmount;
+        return $money['gross_amount'];
     }
 
     private function posSaleCode(): string
     {
         return TransactionCode::make();
-    }
-
-    /**
-     * @param  Collection<int, UpJurusanPosSale>  $sales
-     * @return array<int, array{id: int, code: string, receipt_url: string, sold_at: string|null, total_quantity: int, total_amount: int, commission_amount: int, seller_amount: int, products: array<int, array{product_name: string, source: string, quantity: int, unit_price: int, subtotal: int}>}>
-     */
-    private function dailyReportTransactions(Collection $sales): array
-    {
-        return $sales
-            ->map(function (UpJurusanPosSale $sale) {
-                return [
-                    'id' => $sale->id,
-                    'code' => $sale->code,
-                    'receipt_url' => route('picket.pos.receipt', $sale, absolute: false),
-                    'sold_at' => $sale->created_at?->toIso8601String(),
-                    'total_quantity' => $sale->total_quantity,
-                    'total_amount' => $sale->total_amount,
-                    'commission_amount' => (int) $sale->movements->sum('commission_amount'),
-                    'seller_amount' => (int) $sale->movements->sum('seller_amount'),
-                    'products' => $sale->movements
-                        ->map(function (UpJurusanStockMovement $movement) {
-                            $product = $movement->up_jurusan_consignment_id === null
-                                ? $movement->product
-                                : $movement->consignment->product;
-
-                            return [
-                                'product_name' => $product->name,
-                                'source' => $movement->up_jurusan_consignment_id === null ? 'Produk UP' : 'Titipan Seller',
-                                'quantity' => $movement->quantity,
-                                'unit_price' => $movement->unit_price,
-                                'subtotal' => $movement->gross_amount,
-                            ];
-                        })
-                        ->values()
-                        ->all(),
-                ];
-            })
-            ->values()
-            ->all();
-    }
-
-    /**
-     * @param  Collection<int, UpJurusanDailyReportTransaction>  $transactions
-     * @return array<int, array{id: int, code: string, receipt_url: string, sold_at: string|null, total_quantity: int, total_amount: int, commission_amount: int, seller_amount: int, products: array<int, array{product_name: string, source: string, quantity: int, unit_price: int, subtotal: int}>}>
-     */
-    private function dailyReportTransactionSnapshots(Collection $transactions): array
-    {
-        return $transactions
-            ->sortByDesc('sold_at')
-            ->map(fn (UpJurusanDailyReportTransaction $transaction) => [
-                'id' => $transaction->id,
-                'code' => $transaction->code,
-                'receipt_url' => $transaction->up_jurusan_pos_sale_id === null
-                    ? '#'
-                    : route('picket.pos.receipt', $transaction->up_jurusan_pos_sale_id, absolute: false),
-                'sold_at' => $transaction->sold_at?->toIso8601String(),
-                'total_quantity' => $transaction->total_quantity,
-                'total_amount' => $transaction->total_amount,
-                'commission_amount' => $transaction->commission_amount,
-                'seller_amount' => $transaction->seller_amount,
-                'products' => $transaction->items
-                    ->map(fn ($item) => [
-                        'product_name' => $item->product_name,
-                        'source' => $item->source,
-                        'quantity' => $item->quantity,
-                        'unit_price' => $item->unit_price,
-                        'subtotal' => $item->subtotal,
-                    ])
-                    ->values()
-                    ->all(),
-            ])
-            ->values()
-            ->all();
-    }
-
-    /**
-     * @param  Collection<int, UpJurusanPosSale>  $sales
-     */
-    private function snapshotReportTransactions(UpJurusanDailyReport $report, Collection $sales): void
-    {
-        $sales->each(function (UpJurusanPosSale $sale) use ($report) {
-            $transaction = $report->transactions()->create([
-                'up_jurusan_pos_sale_id' => $sale->id,
-                'code' => $sale->code,
-                'total_quantity' => $sale->total_quantity,
-                'total_amount' => $sale->total_amount,
-                'commission_amount' => (int) $sale->movements->sum('commission_amount'),
-                'seller_amount' => (int) $sale->movements->sum('seller_amount'),
-                'sold_at' => $sale->created_at,
-            ]);
-
-            $sale->movements->each(function (UpJurusanStockMovement $movement) use ($transaction) {
-                $product = $movement->up_jurusan_consignment_id === null
-                    ? $movement->product
-                    : $movement->consignment->product;
-
-                $transaction->items()->create([
-                    'up_jurusan_stock_movement_id' => $movement->id,
-                    'product_name' => $product->name,
-                    'source' => $movement->up_jurusan_consignment_id === null ? 'Produk UP' : 'Titipan Seller',
-                    'quantity' => $movement->quantity,
-                    'unit_price' => $movement->unit_price,
-                    'subtotal' => $movement->gross_amount,
-                ]);
-            });
-        });
     }
 }

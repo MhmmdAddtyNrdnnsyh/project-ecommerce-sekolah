@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\StockMovementSource;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -14,6 +15,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int|null $order_id
  * @property int $user_id
  * @property string $type
+ * @property StockMovementSource|null $source
  * @property int $quantity
  * @property int $unit_price
  * @property int $gross_amount
@@ -26,7 +28,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property UpJurusanPosSale|null $posSale
  * @property User $user
  */
-#[Fillable(['up_jurusan_consignment_id', 'product_id', 'up_jurusan_pos_sale_id', 'order_id', 'user_id', 'type', 'quantity', 'unit_price', 'gross_amount', 'commission_amount', 'seller_amount', 'note', 'reverses_movement_id'])]
+#[Fillable(['up_jurusan_consignment_id', 'product_id', 'up_jurusan_pos_sale_id', 'order_id', 'user_id', 'type', 'source', 'quantity', 'unit_price', 'gross_amount', 'commission_amount', 'seller_amount', 'note', 'reverses_movement_id'])]
 class UpJurusanStockMovement extends Model
 {
     /**
@@ -35,6 +37,7 @@ class UpJurusanStockMovement extends Model
     protected function casts(): array
     {
         return [
+            'source' => StockMovementSource::class,
             'quantity' => 'integer',
             'unit_price' => 'integer',
             'gross_amount' => 'integer',

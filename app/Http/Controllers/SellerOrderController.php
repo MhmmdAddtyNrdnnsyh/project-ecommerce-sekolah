@@ -11,8 +11,8 @@ use App\Models\UpJurusanStockMovement;
 use App\Models\User;
 use App\Support\OrderItemCancellation;
 use App\Support\OrderItemFulfillment;
-use App\Support\OrderPaymentSync;
 use App\Support\OrderStatusSync;
+use App\Support\PaymentTransitionService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -228,46 +228,19 @@ class SellerOrderController extends Controller
         /** @var User $seller */
         $seller = $request->user();
 
-        DB::transaction(function () use ($orderItem, $seller) {
-            /** @var OrderItem $current */
-            $current = OrderItem::query()
-                ->with(['order:id', 'product:id,seller_id,up_jurusan_id,sales_method'])
-                ->lockForUpdate()
-                ->findOrFail($orderItem->id);
+        $orderItem->load(['product:id,seller_id,up_jurusan_id,sales_method']);
 
-            if ($current->product->seller_id !== $seller->id) {
-                abort(403);
-            }
+        if ($orderItem->product->seller_id !== $seller->id) {
+            abort(403);
+        }
 
-            if ($current->product->usesConsignmentStock()) {
-                throw ValidationException::withMessages([
-                    'payment' => 'Pelunasan produk titipan dikonfirmasi oleh picket officer UP Jurusan.',
-                ]);
-            }
-
-            if ($current->payment_status === PaymentStatus::Paid) {
-                throw ValidationException::withMessages([
-                    'payment' => 'Pembayaran item ini sudah lunas.',
-                ]);
-            }
-
-            if ($current->payment_status === PaymentStatus::Rejected) {
-                throw ValidationException::withMessages([
-                    'payment' => 'Pembayaran item ini sudah ditolak.',
-                ]);
-            }
-
-            $current->update([
-                'payment_status' => PaymentStatus::Paid,
-                'payment_method' => PaymentMethod::Cash,
-                'payment_confirmed_at' => now(),
-                'payment_confirmed_by' => $seller->id,
-                'payment_rejection_reason' => null,
+        if ($orderItem->product->usesConsignmentStock()) {
+            throw ValidationException::withMessages([
+                'payment' => 'Pelunasan produk titipan dikonfirmasi oleh picket officer UP Jurusan.',
             ]);
+        }
 
-            OrderPaymentSync::sync($current->order);
-            OrderStatusSync::sync($current->order);
-        });
+        PaymentTransitionService::approve($orderItem, $seller);
 
         return back()->with('success', 'Pelunasan item berhasil dikonfirmasi.');
     }
@@ -281,51 +254,23 @@ class SellerOrderController extends Controller
             'payment_rejection_reason' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        DB::transaction(function () use ($orderItem, $seller, $validated) {
-            /** @var OrderItem $current */
-            $current = OrderItem::query()
-                ->with(['order:id', 'product:id,seller_id,up_jurusan_id,sales_method'])
-                ->lockForUpdate()
-                ->findOrFail($orderItem->id);
+        $orderItem->load(['product:id,seller_id,up_jurusan_id,sales_method']);
 
-            if ($current->product->seller_id !== $seller->id) {
-                abort(403);
-            }
+        if ($orderItem->product->seller_id !== $seller->id) {
+            abort(403);
+        }
 
-            if ($current->product->usesConsignmentStock()) {
-                throw ValidationException::withMessages([
-                    'payment' => 'Penolakan pelunasan produk titipan dikelola oleh picket officer UP Jurusan.',
-                ]);
-            }
-
-            if ($current->payment_status === PaymentStatus::Paid) {
-                throw ValidationException::withMessages([
-                    'payment' => 'Pembayaran yang sudah lunas tidak dapat ditolak.',
-                ]);
-            }
-
-            if ($current->payment_status === PaymentStatus::Rejected) {
-                throw ValidationException::withMessages([
-                    'payment' => 'Pembayaran item ini sudah ditolak.',
-                ]);
-            }
-
-            if ($current->status->isTerminal()) {
-                throw ValidationException::withMessages([
-                    'payment' => 'Item yang sudah selesai atau dibatalkan tidak dapat ditolak pembayarannya.',
-                ]);
-            }
-
-            $current->update([
-                'payment_status' => PaymentStatus::Rejected,
-                'payment_confirmed_at' => null,
-                'payment_confirmed_by' => null,
-                'payment_rejection_reason' => $validated['payment_rejection_reason'] ?? null,
+        if ($orderItem->product->usesConsignmentStock()) {
+            throw ValidationException::withMessages([
+                'payment' => 'Penolakan pelunasan produk titipan dikelola oleh picket officer UP Jurusan.',
             ]);
+        }
 
-            OrderPaymentSync::sync($current->order);
-            OrderStatusSync::sync($current->order);
-        });
+        PaymentTransitionService::reject(
+            $orderItem,
+            $seller,
+            $validated['payment_rejection_reason'] ?? null,
+        );
 
         return back()->with('success', 'Pembayaran item ditolak.');
     }

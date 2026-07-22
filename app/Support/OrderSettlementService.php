@@ -21,7 +21,19 @@ class OrderSettlementService
         $status = self::deriveStatus($items);
 
         if ($order->status !== $status) {
+            $old = $order->status;
             $order->update(['status' => $status]);
+
+            DomainEventService::record(
+                DomainEventService::AGGREGATE_ORDER,
+                $order->id,
+                'order_status_changed',
+                null,
+                [
+                    'old_status' => $old instanceof OrderStatus ? $old->value : (string) $old,
+                    'new_status' => $status->value,
+                ],
+            );
         }
     }
 

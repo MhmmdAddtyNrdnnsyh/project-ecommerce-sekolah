@@ -4,7 +4,7 @@ namespace App\Support;
 
 use App\Enums\OrderItemStatus;
 use App\Enums\PaymentStatus;
-use App\Enums\UpJurusanConsignmentStatus;
+use App\Enums\StockMovementSource;
 use App\Enums\UserRole;
 use App\Models\Order;
 use App\Models\OrderItem;
@@ -56,6 +56,16 @@ class OrderItemCancellation
             foreach ($cancellableIds as $itemId) {
                 self::cancelItemWithinTransaction((int) $itemId, $actor, $reason, $force);
             }
+
+            DomainEventService::record(
+                DomainEventService::AGGREGATE_ORDER,
+                $current->id,
+                'order_cancelled',
+                $actor,
+                [
+                    'reason' => $reason,
+                ],
+            );
         });
     }
 
@@ -81,12 +91,38 @@ class OrderItemCancellation
         self::assertCanCancel($current, $actor, $force);
         self::restock($current, $actor);
 
+        $restoredQuantity = (int) $current->quantity;
+        $isExpiry = is_string($reason)
+            && str_contains($reason, 'melewati batas waktu pembayaran');
+
         $current->update([
             'status' => OrderItemStatus::Cancelled,
             'cancelled_at' => now(),
             'cancelled_by' => $actor->id,
             'cancel_reason' => $reason,
         ]);
+
+        DomainEventService::record(
+            DomainEventService::AGGREGATE_ORDER_ITEM,
+            $current->id,
+            $isExpiry ? 'order_expired' : 'order_item_cancelled',
+            $actor,
+            [
+                'reason' => $reason,
+                'restored_quantity' => $restoredQuantity,
+            ],
+        );
+
+        DomainEventService::record(
+            DomainEventService::AGGREGATE_ORDER_ITEM,
+            $current->id,
+            'restock_completed',
+            $actor,
+            [
+                'reason' => $reason,
+                'restored_quantity' => $restoredQuantity,
+            ],
+        );
 
         OrderPaymentSync::sync($current->order);
         OrderStatusSync::sync($current->order->fresh(['items']));
@@ -244,17 +280,17 @@ class OrderItemCancellation
                     continue;
                 }
 
+                $money = MoneyCalculationService::reverseMovementSplit($movement, (int) $movement->quantity);
+
                 UpJurusanStockMovement::query()->create([
                     'up_jurusan_consignment_id' => null,
                     'product_id' => $product->id,
                     'order_id' => $item->order_id,
                     'user_id' => $actor->id,
                     'type' => 'in',
+                    'source' => StockMovementSource::Reverse,
                     'quantity' => $movement->quantity,
-                    'unit_price' => $movement->unit_price,
-                    'gross_amount' => $movement->gross_amount,
-                    'commission_amount' => $movement->commission_amount,
-                    'seller_amount' => $movement->seller_amount,
+                    ...$money,
                     'note' => 'Restock pembatalan pesanan',
                     'reverses_movement_id' => $movement->id,
                 ]);
@@ -291,21 +327,9 @@ class OrderItemCancellation
                 ->lockForUpdate()
                 ->findOrFail($movement->up_jurusan_consignment_id);
 
-            $newSold = max(0, $consignment->sold_quantity - $restoreQty);
-            $consignment->update([
-                'sold_quantity' => $newSold,
-                'status' => $newSold >= $consignment->received_quantity
-                    ? UpJurusanConsignmentStatus::Completed
-                    : ($consignment->received_quantity > 0
-                        ? UpJurusanConsignmentStatus::Received
-                        : $consignment->status),
-            ]);
+            ConsignmentTransitionService::restoreSold($consignment, $restoreQty);
 
-            $unitPrice = $movement->unit_price;
-            $grossAmount = $unitPrice * $restoreQty;
-            $commissionAmount = $movement->quantity > 0
-                ? intdiv($movement->commission_amount * $restoreQty, $movement->quantity)
-                : 0;
+            $money = MoneyCalculationService::reverseMovementSplit($movement, $restoreQty);
 
             UpJurusanStockMovement::query()->create([
                 'up_jurusan_consignment_id' => $consignment->id,
@@ -313,11 +337,9 @@ class OrderItemCancellation
                 'order_id' => $item->order_id,
                 'user_id' => $actor->id,
                 'type' => 'in',
+                'source' => StockMovementSource::Reverse,
                 'quantity' => $restoreQty,
-                'unit_price' => $unitPrice,
-                'gross_amount' => $grossAmount,
-                'commission_amount' => $commissionAmount,
-                'seller_amount' => $grossAmount - $commissionAmount,
+                ...$money,
                 'note' => 'Restock pembatalan pesanan',
                 'reverses_movement_id' => $movement->id,
             ]);

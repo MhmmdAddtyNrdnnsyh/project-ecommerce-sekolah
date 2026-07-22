@@ -2,12 +2,11 @@
 
 namespace App\Http\Controllers;
 
-use App\Enums\ProductStatus;
-use App\Enums\UpJurusanConsignmentStatus;
 use App\Models\UpJurusanConsignment;
 use App\Models\UpJurusanPayout;
-use App\Models\UpJurusanStockMovement;
 use App\Models\User;
+use App\Support\ConsignmentTransitionService;
+use App\Support\MoneyCalculationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -52,13 +51,8 @@ class AdminJurusanConsignmentController extends Controller
             'product:id,name,description,price,stock',
             'upJurusan:id,name,admin_jurusan_id',
         ]);
-        $sellerEarnings = (int) UpJurusanStockMovement::query()
-            ->where('up_jurusan_consignment_id', $consignment->id)
-            ->where('type', 'out')
-            ->sum('seller_amount');
-        $paidAmount = (int) UpJurusanPayout::query()
-            ->where('up_jurusan_consignment_id', $consignment->id)
-            ->sum('amount');
+        $sellerEarnings = MoneyCalculationService::sellerEarningsFromOutMovements($consignment->id);
+        $paidAmount = MoneyCalculationService::paidPayoutAmount($consignment->id);
 
         return Inertia::render('admin-jurusan/consignments/show', [
             'consignment' => [
@@ -85,7 +79,7 @@ class AdminJurusanConsignmentController extends Controller
                 'commission_rate' => $consignment->commission_rate,
                 'seller_earnings' => $sellerEarnings,
                 'paid_amount' => $paidAmount,
-                'unpaid_amount' => max(0, $sellerEarnings - $paidAmount),
+                'unpaid_amount' => MoneyCalculationService::unpaidSellerAmount($consignment->id),
                 'status' => [
                     'code' => $consignment->status->value,
                     'label' => $consignment->status->label(),
@@ -99,12 +93,16 @@ class AdminJurusanConsignmentController extends Controller
     {
         $this->authorizeAdminJurusan($request, $consignment);
 
-        DB::transaction(function () use ($consignment) {
-            $consignment->update(['status' => UpJurusanConsignmentStatus::Approved]);
-            $consignment->product()->update([
-                'status' => ProductStatus::Approved,
-                'rejection_reason' => null,
-            ]);
+        $validated = $request->validate([
+            'commission_rate' => ['required', 'integer', 'min:0', 'max:100'],
+        ]);
+
+        DB::transaction(function () use ($request, $consignment, $validated) {
+            ConsignmentTransitionService::approve(
+                $consignment,
+                (int) $validated['commission_rate'],
+                $request->user(),
+            );
         });
 
         return to_route('admin-jurusan.consignments.index')
@@ -119,19 +117,36 @@ class AdminJurusanConsignmentController extends Controller
             'rejection_reason' => ['required', 'string', 'max:1000'],
         ]);
 
-        DB::transaction(function () use ($consignment, $validated) {
-            $consignment->update([
-                'status' => UpJurusanConsignmentStatus::Rejected,
-                'note' => $validated['rejection_reason'],
-            ]);
-            $consignment->product()->update([
-                'status' => ProductStatus::Rejected,
-                'rejection_reason' => $validated['rejection_reason'],
-            ]);
+        DB::transaction(function () use ($request, $consignment, $validated) {
+            ConsignmentTransitionService::reject(
+                $consignment,
+                $validated['rejection_reason'],
+                $request->user(),
+            );
         });
 
         return to_route('admin-jurusan.consignments.index')
             ->with('success', 'Request titip barang ditolak.');
+    }
+
+    public function cancel(Request $request, UpJurusanConsignment $consignment): RedirectResponse
+    {
+        $this->authorizeAdminJurusan($request, $consignment);
+
+        $validated = $request->validate([
+            'note' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        DB::transaction(function () use ($request, $consignment, $validated) {
+            ConsignmentTransitionService::cancel(
+                $consignment,
+                $validated['note'] ?? null,
+                $request->user(),
+            );
+        });
+
+        return to_route('admin-jurusan.consignments.index')
+            ->with('success', 'Request titip barang dibatalkan.');
     }
 
     public function payout(Request $request, UpJurusanConsignment $consignment): RedirectResponse
@@ -143,14 +158,7 @@ class AdminJurusanConsignmentController extends Controller
             'amount' => ['required', 'integer', 'min:1'],
             'note' => ['nullable', 'string', 'max:1000'],
         ]);
-        $sellerEarnings = (int) UpJurusanStockMovement::query()
-            ->where('up_jurusan_consignment_id', $consignment->id)
-            ->where('type', 'out')
-            ->sum('seller_amount');
-        $paidAmount = (int) UpJurusanPayout::query()
-            ->where('up_jurusan_consignment_id', $consignment->id)
-            ->sum('amount');
-        $unpaidAmount = $sellerEarnings - $paidAmount;
+        $unpaidAmount = MoneyCalculationService::unpaidSellerAmount($consignment->id);
 
         if ((int) $validated['amount'] > $unpaidAmount) {
             throw ValidationException::withMessages([

@@ -7,7 +7,7 @@ use App\Enums\OrderStatus;
 use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
 use App\Enums\ProductStatus;
-use App\Enums\UpJurusanConsignmentStatus;
+use App\Enums\StockMovementSource;
 use App\Models\CartItem;
 use App\Models\Order;
 use App\Models\OrderItem;
@@ -15,6 +15,8 @@ use App\Models\Product;
 use App\Models\UpJurusanConsignment;
 use App\Models\UpJurusanStockMovement;
 use App\Models\User;
+use App\Support\ConsignmentTransitionService;
+use App\Support\MoneyCalculationService;
 use App\Support\OrderItemCancellation;
 use App\Support\PreOrderRules;
 use App\Support\TransactionCode;
@@ -293,17 +295,17 @@ class CheckoutController extends Controller
             ]);
 
             if ($product->seller_id === null && $product->up_jurusan_id !== null) {
+                $money = MoneyCalculationService::upOwnedProductSaleSplit((int) $product->price, $quantity);
+
                 UpJurusanStockMovement::query()->create([
                     'up_jurusan_consignment_id' => null,
                     'product_id' => $product->id,
                     'order_id' => $order->id,
                     'user_id' => $actor->id,
                     'type' => 'out',
+                    'source' => StockMovementSource::OnlineOrder,
                     'quantity' => $quantity,
-                    'unit_price' => $product->price,
-                    'gross_amount' => $subtotal,
-                    'commission_amount' => $subtotal,
-                    'seller_amount' => 0,
+                    ...$money,
                 ]);
             }
         }
@@ -328,26 +330,22 @@ class CheckoutController extends Controller
 
             $available = $consignment->received_quantity - $consignment->sold_quantity;
             $sold = min($remaining, $available);
-            $grossAmount = $product->price * $sold;
-            $commissionAmount = intdiv($grossAmount * $consignment->commission_rate, 100);
+            $money = MoneyCalculationService::consignmentSaleSplit(
+                (int) $product->price,
+                $sold,
+                (int) ($consignment->commission_rate ?? 0),
+            );
 
-            $consignment->update([
-                'sold_quantity' => $consignment->sold_quantity + $sold,
-                'status' => $consignment->sold_quantity + $sold >= $consignment->received_quantity
-                    ? UpJurusanConsignmentStatus::Completed
-                    : $consignment->status,
-            ]);
+            ConsignmentTransitionService::recordSold($consignment, $sold);
             UpJurusanStockMovement::query()->create([
                 'up_jurusan_consignment_id' => $consignment->id,
                 'product_id' => null,
                 'order_id' => $order->id,
                 'user_id' => $actor->id,
                 'type' => 'out',
+                'source' => StockMovementSource::OnlineOrder,
                 'quantity' => $sold,
-                'unit_price' => $product->price,
-                'gross_amount' => $grossAmount,
-                'commission_amount' => $commissionAmount,
-                'seller_amount' => $grossAmount - $commissionAmount,
+                ...$money,
             ]);
 
             $remaining -= $sold;

@@ -70,6 +70,7 @@ test('consignmentUnpaidAmount subtracts payouts', function () {
         'order_id' => null,
         'user_id' => $seller->id,
         'type' => 'out',
+        'source' => 'pos_sale',
         'quantity' => 1,
         'unit_price' => 1000,
         'gross_amount' => 1000,
