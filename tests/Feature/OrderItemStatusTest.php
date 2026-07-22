@@ -109,7 +109,7 @@ test('checkout creates order items with pending status', function () {
 
     $this->assertDatabaseHas('orders', [
         'user_id' => $buyer->id,
-        'status' => OrderStatus::Pending->value,
+        'status' => OrderStatus::Open->value,
         'total_price' => 10000,
     ]);
 

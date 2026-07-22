@@ -167,7 +167,7 @@ class ProductCatalogSeeder extends Seeder
             ['code' => 'TRX-DEMO-ONLINE-001'],
             [
                 'user_id' => $buyer->id,
-                'status' => OrderStatus::Pending,
+                'status' => OrderStatus::Open,
                 'payment_status' => PaymentStatus::Unpaid,
                 'payment_method' => PaymentMethod::Cash,
                 'payment_proof_path' => null,
@@ -207,7 +207,7 @@ class ProductCatalogSeeder extends Seeder
             ['code' => 'TRX-DEMO-SENT-001'],
             [
                 'user_id' => $buyer->id,
-                'status' => OrderStatus::Pending,
+                'status' => OrderStatus::Open,
                 'payment_status' => PaymentStatus::Paid,
                 'payment_method' => PaymentMethod::Cash,
                 'payment_proof_path' => null,

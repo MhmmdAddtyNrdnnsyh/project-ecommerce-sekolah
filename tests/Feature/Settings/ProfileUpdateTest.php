@@ -98,7 +98,7 @@ test('buyer cannot delete account while order is active', function () {
     $user = User::factory()->create(['role' => UserRole::Buyer]);
     $product = Product::factory()->approved()->create();
     $order = Order::factory()->for($user)->create([
-        'status' => OrderStatus::Pending,
+        'status' => OrderStatus::Open,
     ]);
     OrderItem::factory()->for($order)->for($product)->create([
         'status' => OrderItemStatus::Pending,

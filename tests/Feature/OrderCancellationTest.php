@@ -21,7 +21,7 @@ test('buyer can cancel unpaid order and restock direct seller product', function
     $seller = User::factory()->create(['role' => UserRole::Seller]);
     $product = Product::factory()->for($seller, 'seller')->approved()->create(['stock' => 5]);
     $order = Order::factory()->for($buyer)->create([
-        'status' => OrderStatus::Pending,
+        'status' => OrderStatus::Open,
         'payment_status' => PaymentStatus::Unpaid,
         'expires_at' => now()->addDay(),
     ]);
@@ -222,7 +222,7 @@ test('expire unpaid orders command skips paid items', function () {
     Artisan::call('orders:expire-unpaid');
 
     expect($order->items()->first()->status)->toBe(OrderItemStatus::Pending)
-        ->and($order->fresh()->status)->toBe(OrderStatus::Pending);
+        ->and($order->fresh()->status)->toBe(OrderStatus::Open);
 });
 
 test('pre-order cancel does not change product stock', function () {

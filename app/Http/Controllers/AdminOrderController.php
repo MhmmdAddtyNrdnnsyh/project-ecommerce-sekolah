@@ -6,6 +6,7 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\User;
 use App\Support\OrderLivenessService;
+use App\Support\OrderSettlementService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -111,10 +112,7 @@ class AdminOrderController extends Controller
             'orders' => $orders->through(fn (Order $order) => [
                 'id' => $order->id,
                 'code' => $order->code ?? "TRX-{$order->id}",
-                'status' => [
-                    'code' => $order->status->value,
-                    'label' => $order->status->label(),
-                ],
+                'status' => OrderSettlementService::statusPayload($order),
                 'liveness' => [
                     'code' => OrderLivenessService::livenessLabel($order),
                     'reasons' => OrderLivenessService::stuckReasonsFor($order),

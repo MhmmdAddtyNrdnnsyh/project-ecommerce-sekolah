@@ -16,7 +16,7 @@ return new class extends Migration
         Schema::create('orders', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
-            $table->enum('status', OrderStatus::values())->default(OrderStatus::Pending->value)->index();
+            $table->enum('status', OrderStatus::values())->default(OrderStatus::Open->value)->index();
             $table->unsignedBigInteger('total_price')->default(0);
             $table->string('pickup_method')->default('pickup');
             $table->string('pickup_location')->nullable();

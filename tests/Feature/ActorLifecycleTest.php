@@ -21,7 +21,7 @@ test('admin cannot approve seller application while buyer has active orders', fu
     $admin = User::factory()->create(['role' => UserRole::Admin]);
     $buyer = User::factory()->create(['role' => UserRole::Buyer]);
     $product = Product::factory()->approved()->create();
-    $order = Order::factory()->for($buyer)->create(['status' => OrderStatus::Pending]);
+    $order = Order::factory()->for($buyer)->create(['status' => OrderStatus::Open]);
     OrderItem::factory()->for($order)->for($product)->create([
         'status' => OrderItemStatus::Pending,
         'payment_status' => PaymentStatus::Unpaid,

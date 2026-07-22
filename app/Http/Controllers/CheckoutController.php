@@ -91,7 +91,7 @@ class CheckoutController extends Controller
             $order = Order::query()->create([
                 'code' => TransactionCode::make(),
                 'user_id' => $user->id,
-                'status' => OrderStatus::Pending,
+                'status' => OrderStatus::Open,
                 'payment_status' => PaymentStatus::Unpaid,
                 'payment_method' => PaymentMethod::Cash,
                 'total_price' => 0,

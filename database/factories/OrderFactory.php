@@ -20,7 +20,7 @@ class OrderFactory extends Factory
         return [
             'code' => TransactionCode::make(),
             'user_id' => User::factory(),
-            'status' => OrderStatus::Pending,
+            'status' => OrderStatus::Open,
             'total_price' => 0,
             'pickup_method' => 'pickup',
             'pickup_location' => null,

@@ -31,7 +31,7 @@ test('active order item statuses exclude terminal values', function () {
 
 test('userHasActiveOrders is true for pending item', function () {
     $buyer = User::factory()->create(['role' => UserRole::Buyer]);
-    $order = Order::factory()->for($buyer)->create(['status' => OrderStatus::Pending]);
+    $order = Order::factory()->for($buyer)->create(['status' => OrderStatus::Open]);
     OrderItem::factory()->for($order)->create(['status' => OrderItemStatus::Pending]);
 
     expect(ActorLifecycle::userHasActiveOrders($buyer))->toBeTrue();
@@ -47,7 +47,7 @@ test('userHasActiveOrders is false when all items cancelled', function () {
 
 test('assertCanPromoteToSeller throws when active orders exist', function () {
     $buyer = User::factory()->create(['role' => UserRole::Buyer]);
-    $order = Order::factory()->for($buyer)->create(['status' => OrderStatus::Pending]);
+    $order = Order::factory()->for($buyer)->create(['status' => OrderStatus::Open]);
     OrderItem::factory()->for($order)->create(['status' => OrderItemStatus::Packed]);
 
     ActorLifecycle::assertCanPromoteToSeller($buyer);

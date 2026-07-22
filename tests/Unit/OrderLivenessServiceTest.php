@@ -21,7 +21,7 @@ test('filter values include required admin buckets', function () {
 test('stuck reasons empty for healthy order', function () {
     $buyer = User::factory()->create(['role' => UserRole::Buyer]);
     $order = Order::factory()->for($buyer)->create([
-        'status' => OrderStatus::Pending,
+        'status' => OrderStatus::Open,
         'expires_at' => now()->addDay(),
         'payment_status' => PaymentStatus::Paid,
     ]);

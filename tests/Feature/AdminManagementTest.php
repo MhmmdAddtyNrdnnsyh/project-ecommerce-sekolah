@@ -176,7 +176,7 @@ test('admin can list and filter orders', function () {
     $seller = User::factory()->create(['role' => UserRole::Seller]);
     $product = Product::factory()->for($seller, 'seller')->approved()->create(['name' => 'Pulpen Biru']);
     $order = Order::factory()->for($buyer)->create([
-        'status' => OrderStatus::Pending,
+        'status' => OrderStatus::Open,
         'total_price' => 20_000,
     ]);
     OrderItem::factory()->for($order)->for($product)->create([

@@ -16,7 +16,7 @@ test('unpaid expired orders are detected', function () {
     $buyer = User::factory()->create(['role' => UserRole::Buyer]);
     $product = Product::factory()->approved()->create();
     $order = Order::factory()->for($buyer)->create([
-        'status' => OrderStatus::Pending,
+        'status' => OrderStatus::Open,
         'payment_status' => PaymentStatus::Unpaid,
         'expires_at' => now()->subHour(),
     ]);
@@ -33,7 +33,7 @@ test('paid packed item idle beyond sla is stuck', function () {
     $buyer = User::factory()->create(['role' => UserRole::Buyer]);
     $product = Product::factory()->approved()->create();
     $order = Order::factory()->for($buyer)->create([
-        'status' => OrderStatus::Pending,
+        'status' => OrderStatus::Open,
         'payment_status' => PaymentStatus::Paid,
     ]);
     OrderItem::factory()->for($order)->for($product)->create([
@@ -51,7 +51,7 @@ test('sent item idle beyond sla is stuck', function () {
     $buyer = User::factory()->create(['role' => UserRole::Buyer]);
     $product = Product::factory()->approved()->create();
     $order = Order::factory()->for($buyer)->create([
-        'status' => OrderStatus::Pending,
+        'status' => OrderStatus::Open,
         'payment_status' => PaymentStatus::Paid,
     ]);
     OrderItem::factory()->for($order)->for($product)->create([
@@ -68,7 +68,7 @@ test('fresh active paid order is not stuck', function () {
     $buyer = User::factory()->create(['role' => UserRole::Buyer]);
     $product = Product::factory()->approved()->create();
     $order = Order::factory()->for($buyer)->create([
-        'status' => OrderStatus::Pending,
+        'status' => OrderStatus::Open,
         'payment_status' => PaymentStatus::Paid,
         'expires_at' => now()->addDay(),
     ]);
@@ -88,7 +88,7 @@ test('detect stuck command marks stuck reasons', function () {
     $buyer = User::factory()->create(['role' => UserRole::Buyer]);
     $product = Product::factory()->approved()->create();
     $order = Order::factory()->for($buyer)->create([
-        'status' => OrderStatus::Pending,
+        'status' => OrderStatus::Open,
         'payment_status' => PaymentStatus::Paid,
     ]);
     OrderItem::factory()->for($order)->for($product)->create([
@@ -111,7 +111,7 @@ test('admin can force cancel stuck order', function () {
     $seller = User::factory()->create(['role' => UserRole::Seller]);
     $product = Product::factory()->for($seller, 'seller')->approved()->create(['stock' => 0]);
     $order = Order::factory()->for($buyer)->create([
-        'status' => OrderStatus::Pending,
+        'status' => OrderStatus::Open,
         'payment_status' => PaymentStatus::Paid,
     ]);
     OrderItem::factory()->for($order)->for($product)->create([
@@ -137,7 +137,7 @@ test('admin can force complete sent paid order', function () {
     $buyer = User::factory()->create(['role' => UserRole::Buyer]);
     $product = Product::factory()->approved()->create();
     $order = Order::factory()->for($buyer)->create([
-        'status' => OrderStatus::Pending,
+        'status' => OrderStatus::Open,
         'payment_status' => PaymentStatus::Paid,
     ]);
     OrderItem::factory()->for($order)->for($product)->create([
@@ -179,7 +179,7 @@ test('admin orders index filters by liveness', function () {
     $product = Product::factory()->approved()->create();
 
     $expired = Order::factory()->for($buyer)->create([
-        'status' => OrderStatus::Pending,
+        'status' => OrderStatus::Open,
         'payment_status' => PaymentStatus::Unpaid,
         'expires_at' => now()->subHour(),
     ]);
@@ -189,7 +189,7 @@ test('admin orders index filters by liveness', function () {
     ]);
 
     $active = Order::factory()->for($buyer)->create([
-        'status' => OrderStatus::Pending,
+        'status' => OrderStatus::Open,
         'payment_status' => PaymentStatus::Paid,
         'expires_at' => now()->addDay(),
     ]);

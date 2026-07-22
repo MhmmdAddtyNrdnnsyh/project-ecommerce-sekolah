@@ -1,6 +1,5 @@
 <?php
 
-use App\Enums\OrderItemStatus;
 use App\Enums\OrderStatus;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
@@ -10,25 +9,40 @@ return new class extends Migration
 {
     public function up(): void
     {
+        $values = [
+            ...OrderStatus::values(),
+            OrderStatus::LEGACY_PENDING,
+        ];
+
+        $this->expandEnumColumn('orders', 'status', $values, OrderStatus::Open->value);
+
+        DB::table('orders')
+            ->where('status', OrderStatus::LEGACY_PENDING)
+            ->update(['status' => OrderStatus::Open->value]);
+
         $this->expandEnumColumn('orders', 'status', OrderStatus::values(), OrderStatus::Open->value);
-        $this->expandEnumColumn('order_items', 'status', OrderItemStatus::values(), OrderItemStatus::Pending->value);
     }
 
     public function down(): void
     {
-        $this->expandEnumColumn('orders', 'status', [OrderStatus::Open->value], OrderStatus::Open->value);
+        DB::table('orders')
+            ->whereIn('status', [
+                OrderStatus::Open->value,
+                OrderStatus::PartiallyPaid->value,
+                OrderStatus::Paid->value,
+            ])
+            ->update(['status' => OrderStatus::LEGACY_PENDING]);
+
         $this->expandEnumColumn(
-            'order_items',
+            'orders',
             'status',
             [
-                OrderItemStatus::Pending->value,
-                OrderItemStatus::InProduction->value,
-                OrderItemStatus::Ready->value,
-                OrderItemStatus::Packed->value,
-                OrderItemStatus::Sent->value,
-                OrderItemStatus::Completed->value,
+                OrderStatus::LEGACY_PENDING,
+                OrderStatus::PartiallyCompleted->value,
+                OrderStatus::Completed->value,
+                OrderStatus::Cancelled->value,
             ],
-            OrderItemStatus::Pending->value,
+            OrderStatus::LEGACY_PENDING,
         );
     }
 
@@ -39,6 +53,7 @@ return new class extends Migration
     {
         $driver = Schema::getConnection()->getDriverName();
         $quotedValues = collect($values)
+            ->unique()
             ->map(fn (string $value) => "'".str_replace("'", "''", $value)."'")
             ->implode(', ');
 
@@ -49,13 +64,10 @@ return new class extends Migration
         }
 
         if ($driver === 'pgsql') {
-            // Original migrations may have used varchar; ensure column accepts new values.
             DB::statement("ALTER TABLE {$table} ALTER COLUMN {$column} TYPE VARCHAR(255)");
             DB::statement("ALTER TABLE {$table} ALTER COLUMN {$column} SET DEFAULT '{$default}'");
 
             return;
         }
-
-        // sqlite and others: enum columns are typically stored as varchar already.
     }
 };

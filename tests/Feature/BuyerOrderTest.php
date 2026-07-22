@@ -16,7 +16,7 @@ test('buyer can list their own orders', function () {
     $seller = User::factory()->create(['role' => UserRole::Seller]);
     $product = Product::factory()->for($seller, 'seller')->approved()->create(['name' => 'Pulpen Biru']);
     $order = Order::factory()->for($buyer)->create([
-        'status' => OrderStatus::Pending,
+        'status' => OrderStatus::Open,
         'total_price' => 20_000,
     ]);
     OrderItem::factory()->for($order)->for($product)->create([
@@ -57,8 +57,8 @@ test('buyer can view their order detail', function () {
         ->assertInertia(fn (Assert $page) => $page
             ->component('orders/show')
             ->where('order.id', $order->id)
-            ->where('order.status.code', OrderItemStatus::Pending->value)
-            ->where('order.status.label', OrderItemStatus::Pending->label())
+            ->where('order.status.code', OrderStatus::Open->value)
+            ->where('order.status.label', OrderStatus::Open->label())
             ->where('order.total_price', 12_000)
             ->where('order.created_at', $order->created_at->toIso8601String())
             ->where('order.items.0.product_name', 'Buku Tulis')
@@ -69,24 +69,25 @@ test('buyer can view their order detail', function () {
         );
 });
 
-test('buyer order summary status follows seller item status updates', function () {
+test('buyer order summary status uses multi-owner settlement projection', function () {
     $buyer = User::factory()->create(['role' => UserRole::Buyer]);
     $seller = User::factory()->create(['role' => UserRole::Seller]);
     $product = Product::factory()->for($seller, 'seller')->approved()->create();
     $order = Order::factory()->for($buyer)->create([
-        'status' => OrderStatus::Pending,
+        'status' => OrderStatus::Open,
     ]);
 
     OrderItem::factory()->for($order)->for($product)->create([
         'status' => OrderItemStatus::Packed,
+        'payment_status' => PaymentStatus::Unpaid,
     ]);
 
     $this->actingAs($buyer)
         ->get(route('orders.index'))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
-            ->where('orders.data.0.status.code', OrderItemStatus::Packed->value)
-            ->where('orders.data.0.status.label', OrderItemStatus::Packed->label()),
+            ->where('orders.data.0.status.code', OrderStatus::Open->value)
+            ->where('orders.data.0.status.label', OrderStatus::Open->label()),
         );
 });
 
@@ -95,7 +96,7 @@ test('buyer can complete sent order items after receiving the order', function (
     $seller = User::factory()->create(['role' => UserRole::Seller]);
     $product = Product::factory()->for($seller, 'seller')->approved()->create();
     $order = Order::factory()->for($buyer)->create([
-        'status' => OrderStatus::Pending,
+        'status' => OrderStatus::Open,
     ]);
     $orderItem = OrderItem::factory()->for($order)->for($product)->create([
         'status' => OrderItemStatus::Sent,
@@ -118,7 +119,7 @@ test('buyer cannot complete sent items when payment is unpaid', function () {
     $seller = User::factory()->create(['role' => UserRole::Seller]);
     $product = Product::factory()->for($seller, 'seller')->approved()->create();
     $order = Order::factory()->for($buyer)->create([
-        'status' => OrderStatus::Pending,
+        'status' => OrderStatus::Open,
     ]);
     $orderItem = OrderItem::factory()->for($order)->for($product)->create([
         'status' => OrderItemStatus::Sent,

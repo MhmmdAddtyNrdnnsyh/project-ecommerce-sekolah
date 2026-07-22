@@ -9,6 +9,7 @@ use App\Models\OrderItem;
 use App\Models\User;
 use App\Support\OrderItemCancellation;
 use App\Support\OrderItemFulfillment;
+use App\Support\OrderSettlementService;
 use App\Support\OrderStatusSync;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -116,16 +117,12 @@ class BuyerOrderController extends Controller
      */
     private function orderPayload(Order $order, ?int $itemLimit = null): array
     {
-        $status = $this->summaryStatus($order);
         $items = $itemLimit === null ? $order->items : $order->items->take($itemLimit);
 
         return [
             'id' => $order->id,
             'code' => $order->code ?? "TRX-{$order->id}",
-            'status' => [
-                'code' => $status->value,
-                'label' => $status->label(),
-            ],
+            'status' => OrderSettlementService::statusPayload($order),
             'can_complete' => $order->items->contains(
                 fn (OrderItem $item) => $item->status === OrderItemStatus::Sent
                     && $item->payment_status === PaymentStatus::Paid
@@ -186,47 +183,6 @@ class BuyerOrderController extends Controller
                 ->all(),
             'created_at' => $order->created_at?->toIso8601String(),
         ];
-    }
-
-    private function summaryStatus(Order $order): OrderItemStatus
-    {
-        $statuses = $order->items->pluck('status');
-
-        if ($statuses->isEmpty()) {
-            return OrderItemStatus::Pending;
-        }
-
-        if ($statuses->every(fn ($status) => $status === OrderItemStatus::Cancelled)) {
-            return OrderItemStatus::Cancelled;
-        }
-
-        $active = $statuses->reject(fn ($status) => $status === OrderItemStatus::Cancelled);
-
-        if ($active->isEmpty()) {
-            return OrderItemStatus::Cancelled;
-        }
-
-        if ($active->contains(OrderItemStatus::Pending)) {
-            return OrderItemStatus::Pending;
-        }
-
-        if ($active->contains(OrderItemStatus::InProduction)) {
-            return OrderItemStatus::InProduction;
-        }
-
-        if ($active->contains(OrderItemStatus::Ready)) {
-            return OrderItemStatus::Ready;
-        }
-
-        if ($active->contains(OrderItemStatus::Packed)) {
-            return OrderItemStatus::Packed;
-        }
-
-        if ($active->contains(OrderItemStatus::Sent)) {
-            return OrderItemStatus::Sent;
-        }
-
-        return OrderItemStatus::Completed;
     }
 
     /**

@@ -35,7 +35,7 @@ test('authenticated buyer can checkout and convert cart into an order', function
 
     $this->assertDatabaseHas('orders', [
         'user_id' => $buyer->id,
-        'status' => OrderStatus::Pending->value,
+        'status' => OrderStatus::Open->value,
         'payment_status' => PaymentStatus::Unpaid->value,
         'payment_method' => PaymentMethod::Cash->value,
         'total_price' => 10000,
